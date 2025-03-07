@@ -2,10 +2,10 @@ language: generic
 compiler: gcc
 matrix:
   include:
-    - name: 'ROS Kinetic'
+    - name: "ROS Kinetic"
       dist: xenial
       env: CI_UBUNTU=xenial CI_ROS_DISTRO=kinetic
-    - name: 'ROS Melodic'
+    - name: "ROS Melodic"
       dist: bionic
       env: CI_UBUNTU=bionic CI_ROS_DISTRO=melodic
 
@@ -33,4 +33,3 @@ before_script:
 script:
   - catkin_lint /tmp/ws/src/webrtc
   - catkin build -w /tmp/ws -p1 -j2 --no-status -i
-

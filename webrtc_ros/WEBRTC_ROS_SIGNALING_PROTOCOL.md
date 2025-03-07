@@ -36,11 +36,11 @@ Additional fields can also be specified to send additional information.
 ## 2. The webrtc_ros signaling protocol
 
 Message Types:
- * **ice_candidate** - A message that contains an ICE candidate
- * **offer** - A message that contains a WebRTC SDP offer
- * **answer** - A message that contains a WebRTC SDP answer
- * **configure** - A message that configures media and data streams
 
+-   **ice_candidate** - A message that contains an ICE candidate
+-   **offer** - A message that contains a WebRTC SDP offer
+-   **answer** - A message that contains a WebRTC SDP answer
+-   **configure** - A message that configures media and data streams
 
 ### 2.1 ICE Candidate Message
 
@@ -57,7 +57,6 @@ establish connections. Messages take the form:
 
 More documentation on the attributes can be found
 [here](http://www.w3.org/TR/webrtc/#attributes-3).
-
 
 ### 2.2 SDP Offer and Answer Message
 
@@ -85,18 +84,21 @@ messages take the form:
 ```
 
 An action is of the form:
+
 ```json
 { "type": <string> }
 ```
+
 with additional properties depending on the type of the action.
 
 Action Types:
- * **add_stream** - Tell the remote client start a new stream
- * **remove_stream** - Tell the remote client to remove a stream
- * **add_video_track** - Add a video track to a remote client's stream
- * **add_audio_track** - Add a audio track to a remote client's stream
- * **expect_stream** - Tell the remote client to expect a stream
- * **expect_video_track** - Tell the remote client to expect a video track
+
+-   **add_stream** - Tell the remote client start a new stream
+-   **remove_stream** - Tell the remote client to remove a stream
+-   **add_video_track** - Add a video track to a remote client's stream
+-   **add_audio_track** - Add a audio track to a remote client's stream
+-   **expect_stream** - Tell the remote client to expect a stream
+-   **expect_video_track** - Tell the remote client to expect a video track
     and what to do with the track it receives
 
 ### 2.3.1 add_stream
@@ -157,32 +159,37 @@ to get the video from.
 ```
 
 ### 3. Stream Sources
+
 Stream sources are specified as a URI with a scheme and path component.
 
 ### 3.1 Video Track Sources
 
-### 3.1.1 ROS Image Source ( ros\_image:_ros\_topic_ )
+### 3.1.1 ROS Image Source ( ros_image:_ros_topic_ )
+
 The ROS image source uses image_transport to subscribe to images from a ROS
 system. It uses the received images as the video track. The URI path component
 is used as the subscribed ROS topic.
 
 ### 3.2 Audio Track Sources ( local: )
+
 Streams audio from inputs on the machine the webrtc_ros node is running on.
 Currently this just uses the default input source, but may be expanded in the
 future to add support for selecting a source.
 
 ### 3.2.1 Local Audio Source
+
 The ROS image source uses image_transport to subscribe to images from a ROS
 system. It uses the received images as the video track. The URI path component
 is used as the subscribed ROS topic.
 
-
 ### 4. Stream Destinations
+
 Stream destinations are specified as a URI with a scheme and path component.
 
 ### 4.1 Video Track Destinations
 
-### 4.1.1 ROS Image Destinations ( ros\_image:_ros\_topic_ )
+### 4.1.1 ROS Image Destinations ( ros_image:_ros_topic_ )
+
 The ROS image destination uses image_transport to publish to images from a ROS
 system. It publishes the received frames to the ROS topic represented by the
 URI path component.

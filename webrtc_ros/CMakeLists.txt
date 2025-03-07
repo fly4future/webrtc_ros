@@ -15,35 +15,35 @@ find_package(X11 REQUIRED)
 find_package(jsoncpp REQUIRED)
 
 add_message_files(
-    FILES
-    IceServer.msg
+  FILES
+  IceServer.msg
 )
 
 add_service_files(
-    FILES
-    GetIceServers.srv
+  FILES
+  GetIceServers.srv
 )
 
 generate_messages(
-    DEPENDENCIES
-    std_msgs
+  DEPENDENCIES
+  std_msgs
 )
 
 catkin_package(
   CATKIN_DEPENDS
-    async_web_server_cpp
-    cv_bridge
-    image_transport
-    message_runtime
-    nodelet
-    roscpp
-    std_msgs
+  async_web_server_cpp
+  cv_bridge
+  image_transport
+  message_runtime
+  nodelet
+  roscpp
+  std_msgs
   DEPENDS webrtc
 )
 
 catkin_install_python(
-    PROGRAMS scripts/ice_server_service.py
-    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+  PROGRAMS scripts/ice_server_service.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 ###########
