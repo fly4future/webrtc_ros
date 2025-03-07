@@ -92,7 +92,7 @@ target_link_libraries(${PROJECT_NAME}_server
   ${catkin_LIBRARIES}
   ${webrtc_LIBRARIES}
   ${X11_LIBRARIES}
-  jsoncpp_object
+  jsoncpp
 )
 
 set_target_properties(${PROJECT_NAME}_server PROPERTIES COMPILE_OPTIONS "-std=c++14")
