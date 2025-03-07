@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8.12)
 project(webrtc)
 
 if(NOT IS_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/build/depot_tools" OR
-   NOT IS_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/build/webrtc")
+    NOT IS_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/build/webrtc")
     message(STATUS "*********************************************************")
     message(STATUS "*                                                       *")
     message(STATUS "*  On the first run, a lot of stuff will be downloaded  *")
@@ -75,7 +75,7 @@ add_custom_target(webrtc ALL
 install(FILES "package.xml" DESTINATION "share/webrtc")
 install(
     FILES
-        "${CMAKE_CURRENT_BINARY_DIR}/output/webrtcConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/output/webrtcConfig.cmake"
     DESTINATION "share/webrtc/cmake"
 )
 install(
