@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import json
 import rospy
 import requests
 from webrtc_ros.msg import IceServer
@@ -17,13 +16,10 @@ class IceServerManager(object):
             'stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'])
         self.turn_server_uris = rospy.get_param('~turn_server_uris', '')
         self.turn_creds_uri = rospy.get_param('~turn_server_creds_uri', '')
-        self.turn_creds_username = rospy.get_param(
-            '~turn_server_creds_username', '')
-        self.turn_creds_password = rospy.get_param(
-            '~turn_server_creds_password', '')
+        self.turn_creds_username = rospy.get_param('~turn_server_creds_username', '')
+        self.turn_creds_password = rospy.get_param('~turn_server_creds_password', '')
 
-        self.get_ice_servers_service = rospy.Service(
-            'get_ice_servers', GetIceServers, self.get_ice_servers)
+        self.get_ice_servers_service = rospy.Service('get_ice_servers', GetIceServers, self.get_ice_servers)
 
         rospy.loginfo('Ice Server Provider Up')
         rospy.spin()
