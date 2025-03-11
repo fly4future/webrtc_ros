@@ -3,21 +3,18 @@
 
 #include <string>
 
-namespace webrtc_ros
-{
+namespace webrtc_ros {
 
 class SignalingChannel {
-public:
+ public:
   virtual ~SignalingChannel();
   virtual void sendPingMessage() = 0;
   virtual void sendTextMessage(const std::string& message) = 0;
 };
 
 class MessageHandler {
-public:
-  enum Type {
-    TEXT, PONG, CLOSE
-  };
+ public:
+  enum Type { TEXT, PONG, CLOSE };
 
   MessageHandler();
   virtual ~MessageHandler();
@@ -28,7 +25,7 @@ public:
 typedef MessageHandler* (*SignalingChannelCallback)(void*, SignalingChannel*);
 
 class WebrtcWebServer {
-public:
+ public:
   static WebrtcWebServer* create(int port, SignalingChannelCallback callback, void* data);
 
   WebrtcWebServer();
@@ -38,7 +35,6 @@ public:
   virtual void stop() = 0;
 };
 
-}
-
+}  // namespace webrtc_ros
 
 #endif

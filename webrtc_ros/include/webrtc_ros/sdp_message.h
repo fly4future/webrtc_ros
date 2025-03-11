@@ -1,17 +1,14 @@
 #ifndef WEBRTC_ROS_SDP_MESSAGE_H_
 #define WEBRTC_ROS_SDP_MESSAGE_H_
 
-#include <webrtc_ros/webrtc_ros_message.h>
 #include <jsoncpp/json/json.h>
 #include <webrtc/api/jsep.h>
+#include <webrtc_ros/webrtc_ros_message.h>
 
+namespace webrtc_ros {
 
-namespace webrtc_ros
-{
-
-class SdpMessage
-{
-public:
+class SdpMessage {
+ public:
   static std::string kSdpFieldName;
   static std::string kSdpOfferType;
   static std::string kSdpAnswerType;
@@ -29,9 +26,8 @@ public:
 
   std::string type;
   std::string sdp;
-
 };
 
-}
+}  // namespace webrtc_ros
 
 #endif
