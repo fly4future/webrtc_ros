@@ -53,6 +53,12 @@ void RosVideoCapturer::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
     if (out_width == roi.width && out_height == roi.height) {
       cv::cvtColor(bgr(roi), yuv, CV_BGR2YUV_I420);
     } else {
+      // Make sure the output resolution is even
+      if (out_width % 2 != 0 || out_height % 2 != 0) {
+        out_width = out_width & ~1;
+        out_height = out_height & ~1;
+      }
+
       cv::Mat m;
       cv::resize(bgr(roi), m, cv::Size2i(out_width, out_height), 0, 0,
                  out_width < roi.width ? cv::INTER_AREA : cv::INTER_LINEAR);
