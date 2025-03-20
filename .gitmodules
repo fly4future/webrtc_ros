@@ -1,3 +1,0 @@
-[submodule "include/webrtc"]
-	path = include/webrtc
-	url = https://webrtc.googlesource.com/src
