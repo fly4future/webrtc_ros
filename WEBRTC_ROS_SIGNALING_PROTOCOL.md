@@ -48,7 +48,8 @@ ICE candidate messages are sent with ICE candidates that are used by WebRTC to
 establish connections. Messages take the form:
 
 ```json
-{ "type": "ice_candidate",
+{
+  "type": "ice_candidate",
   "sdp_mid": <string>,
   "sdp_mline_index": <int>,
   "candiate": <string>
@@ -64,7 +65,8 @@ Offer and Answer messages are exchanged by WebRTC to describe the capabilities
 and streams of the clients. They take the form:
 
 ```json
-{ "type": "offer" | "answer",
+{
+  "type": "offer" | "answer",
   "sdp": <string>
 }
 ```
@@ -78,7 +80,8 @@ responds with an SDP offer, which is responded to with a SDP answer. Configure
 messages take the form:
 
 ```json
-{ "type": "configure",
+{
+  "type": "configure",
   "actions": [<action>]
 }
 ```
@@ -104,7 +107,8 @@ Action Types:
 ### 2.3.1 add_stream
 
 ```json
-{ "type": "add_stream",
+{
+  "type": "add_stream",
   "id": <string>
 }
 ```
@@ -112,7 +116,8 @@ Action Types:
 ### 2.3.2 remove_stream
 
 ```json
-{ "type": "remove_stream",
+{
+  "type": "remove_stream",
   "id": <string>
 }
 ```
@@ -120,7 +125,8 @@ Action Types:
 ### 2.3.3 add_video_track
 
 ```json
-{ "type": "add_video_track",
+{
+  "type": "add_video_track",
   "stream_id": <string>,
   "id": <string>,
   "src": <string>
@@ -130,7 +136,8 @@ Action Types:
 ### 2.3.3 add_audio_track
 
 ```json
-{ "type": "add_audio_track",
+{
+  "type": "add_audio_track",
   "stream_id": <string>,
   "id": <string>,
   "src": <string>
@@ -143,7 +150,8 @@ to get the video from.
 ### 2.3.4 expect_stream
 
 ```json
-{ "type": "expect_stream",
+{
+  "type": "expect_stream",
   "id": <string>
 }
 ```
@@ -151,7 +159,8 @@ to get the video from.
 ### 2.3.5 expect_video_track
 
 ```json
-{ "type": "expect_video_track",
+{
+  "type": "expect_video_track",
   "stream_id": <string>,
   "id": <string>,
   "dest": <string>
@@ -164,13 +173,13 @@ Stream sources are specified as a URI with a scheme and path component.
 
 ### 3.1 Video Track Sources
 
-### 3.1.1 ROS Image Source ( ros_image:_ros_topic_ )
+### 3.1.1 ROS Image Source (`ros_image:_ros_topic_`)
 
 The ROS image source uses image_transport to subscribe to images from a ROS
 system. It uses the received images as the video track. The URI path component
 is used as the subscribed ROS topic.
 
-### 3.2 Audio Track Sources ( local: )
+### 3.2 Audio Track Sources (`local:`)
 
 Streams audio from inputs on the machine the webrtc_ros node is running on.
 Currently this just uses the default input source, but may be expanded in the
@@ -188,7 +197,7 @@ Stream destinations are specified as a URI with a scheme and path component.
 
 ### 4.1 Video Track Destinations
 
-### 4.1.1 ROS Image Destinations ( ros_image:_ros_topic_ )
+### 4.1.1 ROS Image Destinations (`ros_image:_ros_topic_`)
 
 The ROS image destination uses image_transport to publish to images from a ROS
 system. It publishes the received frames to the ROS topic represented by the
