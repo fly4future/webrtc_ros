@@ -58,6 +58,7 @@ You need to create a simple JS file with following steps:
     }
     ```
 5. Send the answer to the offer:
+
     ```js
     function sendAnswer(peerConnection, signalingChannel) {
     	peerConnection
@@ -69,6 +70,37 @@ You need to create a simple JS file with following steps:
     		.catch((error) => console.warn("Create answer error:", error))
     }
     ```
+
+    > [!NOTE]
+    > If you want to set the maximum bitrate, you must modify the SDP before sending the answer. You can do this by adding the following code to the `sendAnswer` function:
+    >
+    > ```js
+    > const sendAnswer = (peerConnection, signalingChannel) => {
+    > 	peerConnection
+    > 		.createAnswer()
+    > 		.then((sessionDescription) => {
+    > 			// Limiting the bandwidth
+    > 			const limit = "100" // 100 kbps
+    > 			const arr = sessionDescription.sdp.split("\r\n")
+    >
+    > 			arr.forEach((line, index) => {
+    > 				if (/^a=mid:(1|video)/.test(line)) {
+    > 					// Detect the video m-line
+    > 					arr.splice(index + 1, 0, "b=AS:" + limit)
+    > 				}
+    > 			})
+    > 			const newSdp = new RTCSessionDescription({
+    > 				type: sessionDescription.type,
+    > 				sdp: arr.join("\r\n"),
+    > 			})
+    >
+    > 			peerConnection.setLocalDescription(newSdp)
+    > 			signalingChannel.send(JSON.stringify(newSdp))
+    > 		})
+    > 		.catch((error) => console.warn("Create answer error:", error))
+    > }
+    > ```
+
 6. When you have a configured peer connection, add the video stream to the video element:
     ```js
     peerConnection.ontrack = (event) => {
