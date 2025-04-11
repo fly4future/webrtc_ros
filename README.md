@@ -12,7 +12,7 @@ This project is released as part of the [Robot Web Tools](https://robotwebtools.
 ### Installation
 To install `webrtc_ros`, you will need to have [ROS](http://wiki.ros.org/noetic/Installation) installed on your system and the following dependencies:
 
-- [async_web_server_cpp](https://wiki.ros.org/async_web_server_cpp): `sudo apt-get install ros-noetic-async-web-server-cpp`. You can also install it with `rosdep` from your workspace:
+- [async_web_server_cpp](https://wiki.ros.org/async_web_server_cpp): `sudo apt-get install ros-noetic-async-web-server-cpp`. You can also install it with `rosdep` from your workspace after cloning the repository:
   ```bash
   rosdep install --from-paths src --ignore-src -r -y
   ```
@@ -23,6 +23,18 @@ To install `webrtc_ros`, you will need to have [ROS](http://wiki.ros.org/noetic/
   > curl https://ctu-mrs.github.io/ppa-unstable/add_ppa.sh | bash
   > sudo apt-get install ros-noetic-webrtc
   > ```
+
+Clone the repository into your ROS workspace and build it:
+
+```bash
+cd ~/<your_workspace>/src
+git clone https://github.com/fly4future/webrtc_ros.git
+```
+```bash
+cd ~/<your_workspace>
+catkin build webrtc_ros # or catkin_make if you don't use catkin tools
+source devel/setup.bash
+```
 
 ### Usage
 To use this package, you will need to have a ROS environment set up and run the launch file:
