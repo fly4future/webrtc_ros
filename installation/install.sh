@@ -4,6 +4,15 @@ set -e
 # Resolve the full path of the script
 MY_PATH="$( cd "$( dirname "$0" )" && pwd )"
 
+if [ -z "$ROS_DISTRO" ]; then
+    echo "Error: ROS_DISTRO environment variable is not set."
+    echo "Please source your ROS Noetic setup file (e.g., source /opt/ros/noetic/setup.bash)"
+    exit 1
+elif [ "$ROS_DISTRO" != "noetic" ]; then
+    echo "Error: This script is intended for ROS Noetic, but ROS_DISTRO is set to '$ROS_DISTRO'."
+    exit 1
+fi
+
 # List of required ROS packages
 REQUIRED_PACKAGES=(
     ros-noetic-async-web-server-cpp
