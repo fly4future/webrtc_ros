@@ -52,7 +52,7 @@ WebrtcClient::WebrtcClient(ros::NodeHandle& nh, const ImageTransportFactory& itf
   worker_thread_->Start();
   peer_connection_factory_ = webrtc::CreatePeerConnectionFactory(
       worker_thread_.get(), worker_thread_.get(), worker_thread_.get(), nullptr,
-      webrtc::CreateBuiltinAudioEncoderFactory(), webrtc::CreateBuiltinAudioDecoderFactory(),
+      nullptr, nullptr,
       std::unique_ptr<webrtc::VideoEncoderFactory>(
           new webrtc::MultiplexEncoderFactory(std::make_unique<webrtc::InternalEncoderFactory>())),
       std::unique_ptr<webrtc::VideoDecoderFactory>(
