@@ -51,6 +51,7 @@ WebrtcClient::WebrtcClient(ros::NodeHandle& nh, const ImageTransportFactory& itf
       worker_thread_(rtc::Thread::CreateWithSocketServer()) {
   worker_thread_->Start();
   nh_.param("use_audio", use_audio_, false);
+  ROS_INFO_STREAM("WebRTC audio support: " << (use_audio_ ? "ENABLED" : "DISABLED"));
   peer_connection_factory_ = webrtc::CreatePeerConnectionFactory(
       worker_thread_.get(), worker_thread_.get(), worker_thread_.get(), nullptr,
       nullptr, nullptr,
@@ -145,10 +146,10 @@ void WebrtcClient::ping_timer_callback(const ros::WallTimerEvent& event) {
 class DummySetSessionDescriptionObserver : public webrtc::SetSessionDescriptionObserver {
  public:
   virtual void OnSuccess() {
-    // ROS_DEBUG(__FUNCTION__);
+    ROS_DEBUG("SetSessionDescription succeeded");
   }
   virtual void OnFailure(webrtc::RTCError error) {
-    // ROS_WARN_STREAM(__FUNCTION__ << " " << error);
+    ROS_WARN_STREAM("SetSessionDescription failed: " << error.message());
   }
 
  protected:
@@ -189,6 +190,7 @@ void WebrtcClient::handle_message(MessageHandler::Type type, const std::string& 
         ROS_WARN("Failed to initialize peer connection");
         return;
       }
+      ROS_INFO("Peer connection initialized successfully");
 
       ROS_DEBUG("Configuring webrtc connection");
 
@@ -225,10 +227,6 @@ void WebrtcClient::handle_message(MessageHandler::Type type, const std::string& 
           }
           peer_connection_->RemoveStream(stream);
         } else if (action.type == ConfigureAction::kAddVideoTrackActionName) {
-          if (!use_audio_) {
-            ROS_INFO("Audio disabled (use_audio:=false); ignoring AddAudioTrack action.");
-            continue;
-          }
           FIND_PROPERTY_OR_CONTINUE("stream_id", stream_id);
           FIND_PROPERTY_OR_CONTINUE("id", track_id);
           FIND_PROPERTY_OR_CONTINUE("src", src);
@@ -259,6 +257,10 @@ void WebrtcClient::handle_message(MessageHandler::Type type, const std::string& 
           }
 
         } else if (action.type == ConfigureAction::kAddAudioTrackActionName) {
+          if (!use_audio_) {
+            ROS_WARN("Audio track creation requested but audio is disabled (use_audio=false)");
+            continue;
+          }
           FIND_PROPERTY_OR_CONTINUE("stream_id", stream_id);
           FIND_PROPERTY_OR_CONTINUE("id", track_id);
           FIND_PROPERTY_OR_CONTINUE("src", src);
@@ -310,8 +312,10 @@ void WebrtcClient::handle_message(MessageHandler::Type type, const std::string& 
           ROS_WARN_STREAM("Unknown configure action type: " << action.type);
         }
       }
+      ROS_INFO_STREAM("Creating WebRTC offer with " << message.actions.size() << " configure actions");
       webrtc::PeerConnectionInterface::RTCOfferAnswerOptions options(0, 0, false, false, false);
       peer_connection_->CreateOffer(webrtc_observer_proxy_.get(), options);
+      ROS_DEBUG("Offer creation requested");
       // TODO check media constraints
     } else if (SdpMessage::isSdpAnswer(message_json)) {
       SdpMessage message;
@@ -370,7 +374,8 @@ void WebrtcClient::OnSessionDescriptionSuccess(webrtc::SessionDescriptionInterfa
 
   SdpMessage message;
   if (message.fromSessionDescription(*description)) {
-    ROS_DEBUG_STREAM("Created local description: " << message.sdp);
+    ROS_INFO_STREAM("Created local description of type: " << description->type());
+    ROS_DEBUG_STREAM("SDP: " << message.sdp);
     signaling_channel_->sendTextMessage(message.toJson());
   } else {
     ROS_WARN("Failed to serialize description");
@@ -392,6 +397,10 @@ void WebrtcClient::OnIceCandidate(const webrtc::IceCandidateInterface* candidate
 
 void WebrtcClient::OnAddRemoteStream(rtc::scoped_refptr<webrtc::MediaStreamInterface> media_stream) {
   std::string stream_id = media_stream->id();
+  ROS_INFO_STREAM("Received remote stream: " << stream_id 
+                  << " with " << media_stream->GetVideoTracks().size() << " video tracks"
+                  << " and " << media_stream->GetAudioTracks().size() << " audio tracks");
+  
   if (expected_streams_.find(stream_id) != expected_streams_.end()) {
     for (auto& track : media_stream->GetVideoTracks()) {
       if (expected_streams_[stream_id].find(track->id()) != expected_streams_[stream_id].end()) {
@@ -416,8 +425,11 @@ void WebrtcClient::OnAddRemoteStream(rtc::scoped_refptr<webrtc::MediaStreamInter
         ROS_WARN_STREAM("Unexpected video track: " << track->id());
       }
     }
-    // Currently audio tracks play to system default output without any action taken
-    // It does not appear to be simple to change this
+    // Check for audio tracks when audio is disabled
+    if (media_stream->GetAudioTracks().size() > 0) {
+      ROS_WARN_STREAM("Remote stream contains " << media_stream->GetAudioTracks().size() 
+                      << " audio track(s) but audio support is disabled");
+    }
   } else {
     ROS_WARN_STREAM("Unexpected stream: " << stream_id);
   }
