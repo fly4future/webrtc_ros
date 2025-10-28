@@ -97,6 +97,8 @@ class WebrtcClient : private boost::noncopyable {
 
   ros::WallTimer ping_timer_;
 
+  bool use_audio_ = false;
+
   friend WebrtcClientObserverProxy;
   friend MessageHandlerImpl;
 };

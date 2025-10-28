@@ -50,6 +50,7 @@ WebrtcClient::WebrtcClient(ros::NodeHandle& nh, const ImageTransportFactory& itf
       signaling_thread_(rtc::Thread::Current()),
       worker_thread_(rtc::Thread::CreateWithSocketServer()) {
   worker_thread_->Start();
+  nh_.param("use_audio", use_audio_, false);
   peer_connection_factory_ = webrtc::CreatePeerConnectionFactory(
       worker_thread_.get(), worker_thread_.get(), worker_thread_.get(), nullptr,
       nullptr, nullptr,
@@ -224,6 +225,10 @@ void WebrtcClient::handle_message(MessageHandler::Type type, const std::string& 
           }
           peer_connection_->RemoveStream(stream);
         } else if (action.type == ConfigureAction::kAddVideoTrackActionName) {
+          if (!use_audio_) {
+            ROS_INFO("Audio disabled (use_audio:=false); ignoring AddAudioTrack action.");
+            continue;
+          }
           FIND_PROPERTY_OR_CONTINUE("stream_id", stream_id);
           FIND_PROPERTY_OR_CONTINUE("id", track_id);
           FIND_PROPERTY_OR_CONTINUE("src", src);
