@@ -1,15 +1,13 @@
 #pragma once
 
 #include <json/json.h>
-#include <limits>
 #include <string>
-
 
 namespace webrtc_ros
 {
 
 class WebrtcRosJsonParser {
-public:
+ public:
   static bool getType(const Json::Value &message_json, std::string *type);
 
   static bool GetStringFromJsonObject(const Json::Value &in, const std::string &k, std::string *out);

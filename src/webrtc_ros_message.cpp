@@ -16,5 +16,4 @@ bool WebrtcRosMessage::getType(const Json::Value &message_json, std::string *typ
 
 std::string WebrtcRosMessage::kMessageTypeFieldName = "type";
 
-
 } // namespace webrtc_ros

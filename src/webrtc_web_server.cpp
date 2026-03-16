@@ -20,7 +20,7 @@ SignalingChannel::~SignalingChannel() {
 }
 
 class SignalingChannelImpl : public SignalingChannel {
-public:
+ public:
   SignalingChannelImpl(async_web_server_cpp::WebsocketConnectionPtr websocket)
       : websocket_(websocket) {
   }
@@ -31,7 +31,7 @@ public:
     websocket_->sendTextMessage(message);
   }
 
-private:
+ private:
   async_web_server_cpp::WebsocketConnectionPtr websocket_;
 };
 
@@ -47,7 +47,7 @@ WebrtcWebServer::~WebrtcWebServer() {
 }
 
 class WebrtcWebServerImpl : public WebrtcWebServer {
-public:
+ public:
   WebrtcWebServerImpl(rclcpp::Node::SharedPtr nh, int port, SignalingChannelCallback callback, void *data)
       : WebrtcWebServer(nh)
       , handler_group_(async_web_server_cpp::HttpReply::stock_reply(async_web_server_cpp::HttpReply::not_found))
@@ -76,7 +76,6 @@ public:
     stop();
   }
 
-
   void run() {
     server_->run();
     RCLCPP_INFO(nh_->get_logger(), "Waiting For connections");
@@ -86,9 +85,9 @@ public:
     server_->stop();
   }
 
-private:
+ private:
   class WebsocketMessageHandlerWrapper {
-  public:
+   public:
     WebsocketMessageHandlerWrapper(MessageHandler *callback)
         : callback_(callback) {
     }
@@ -107,7 +106,7 @@ private:
       callback_->handle_message(type, message.content);
     }
 
-  private:
+   private:
     boost::shared_ptr<MessageHandler> callback_;
   };
 
@@ -122,7 +121,6 @@ private:
     auto        node        = std::make_shared<rclcpp::Node>("webrtc_web_server");
     auto        graph       = node->get_node_graph_interface();
     auto        topics      = graph->get_topic_names_and_types(true);
-
 
     std::string image_message_type       = "sensor_msgs::msg::dds_::Image_";
     std::string camera_info_message_type = "sensor_msgs::msg::dds_::CameraInfo_";
@@ -203,7 +201,6 @@ private:
     return false;
   }
 
-
   boost::shared_ptr<async_web_server_cpp::HttpServer> server_;
   async_web_server_cpp::HttpRequestHandlerGroup       handler_group_;
 
@@ -211,10 +208,8 @@ private:
   void                    *data_;
 };
 
-
 WebrtcWebServer *WebrtcWebServer::create(rclcpp::Node::SharedPtr nh, int port, SignalingChannelCallback callback, void *data) {
   return new WebrtcWebServerImpl(nh, port, callback, data);
 }
-
 
 } // namespace webrtc_ros

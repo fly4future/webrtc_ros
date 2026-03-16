@@ -12,7 +12,7 @@ namespace webrtc_ros
 MessageHandler *WebrtcRosServer_handle_new_signaling_channel(void *_this, SignalingChannel *channel);
 
 class WebrtcRosServer {
-public:
+ public:
   WebrtcRosServer(rclcpp::Node::SharedPtr nh);
   ~WebrtcRosServer();
   void run();
@@ -21,9 +21,9 @@ public:
   MessageHandler *handle_new_signaling_channel(SignalingChannel *channel);
   void            cleanupWebrtcClient(WebrtcClient *client);
 
-  std::unique_ptr<rtc::Thread> signaling_thread_;
+  std::unique_ptr<webrtc::Thread> signaling_thread_;
 
-private:
+ private:
   std::condition_variable                       shutdown_cv_;
   std::mutex                                    clients_mutex_;
   std::map<WebrtcClient *, WebrtcClientWeakPtr> clients_;

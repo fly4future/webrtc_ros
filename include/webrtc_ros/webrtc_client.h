@@ -15,16 +15,15 @@
 #include <media/engine/internal_decoder_factory.h>
 #include <media/engine/internal_encoder_factory.h>
 
-
 #include <media/base/adapted_video_track_source.h>
 
 #include <api/video_codecs/builtin_video_encoder_factory.h>
 #include <api/video_codecs/builtin_video_decoder_factory.h>
+#include <api/candidate.h>
 #include <webrtc_ros/configure_message.h>
 #include <webrtc_ros/webrtc_web_server.h>
 #include <webrtc_ros/image_transport_factory.h>
 #include <rtc_base/thread.h>
-
 
 namespace webrtc_ros
 {
@@ -34,14 +33,14 @@ typedef std::shared_ptr<WebrtcClient> WebrtcClientPtr;
 typedef std::weak_ptr<WebrtcClient>   WebrtcClientWeakPtr;
 
 class WebrtcClientObserverProxy : public webrtc::PeerConnectionObserver, public webrtc::CreateSessionDescriptionObserver {
-public:
+ public:
   WebrtcClientObserverProxy(WebrtcClientWeakPtr client_weak);
 
   void OnSuccess(webrtc::SessionDescriptionInterface *) override;
   void OnFailure(webrtc::RTCError error) override;
-  void OnAddStream(rtc::scoped_refptr<webrtc::MediaStreamInterface>) override;
-  void OnRemoveStream(rtc::scoped_refptr<webrtc::MediaStreamInterface>) override;
-  void OnDataChannel(rtc::scoped_refptr<webrtc::DataChannelInterface>) override;
+  void OnAddStream(webrtc::scoped_refptr<webrtc::MediaStreamInterface>) override;
+  void OnRemoveStream(webrtc::scoped_refptr<webrtc::MediaStreamInterface>) override;
+  void OnDataChannel(webrtc::scoped_refptr<webrtc::DataChannelInterface>) override;
   void OnRenegotiationNeeded() override;
   void OnIceCandidate(const webrtc::IceCandidateInterface *) override;
   void OnSignalingChange(webrtc::PeerConnectionInterface::SignalingState) override;
@@ -49,13 +48,13 @@ public:
   void OnIceGatheringChange(webrtc::PeerConnectionInterface::IceGatheringState) override;
   void OnIceCandidatesRemoved(const std::vector<cricket::Candidate> &candidates) override;
 
-private:
+ private:
   WebrtcClientWeakPtr client_weak_;
 };
 
 class MessageHandlerImpl;
 class WebrtcClient {
-public:
+ public:
   WebrtcClient(rclcpp::Node::SharedPtr nh, const ImageTransportFactory &itf, const std::string &transport, SignalingChannel *signaling_channel);
   ~WebrtcClient();
   MessageHandler *createMessageHandler();
@@ -64,8 +63,7 @@ public:
   void invalidate();
   bool valid();
 
-
-private:
+ private:
   WebrtcClientPtr keep_alive_this_;
 
   bool initPeerConnection();
@@ -76,8 +74,8 @@ private:
 
   void OnSessionDescriptionSuccess(webrtc::SessionDescriptionInterface *);
   void OnSessionDescriptionFailure(const std::string &);
-  void OnAddRemoteStream(rtc::scoped_refptr<webrtc::MediaStreamInterface>);
-  void OnRemoveRemoteStream(rtc::scoped_refptr<webrtc::MediaStreamInterface>);
+  void OnAddRemoteStream(webrtc::scoped_refptr<webrtc::MediaStreamInterface>);
+  void OnRemoveRemoteStream(webrtc::scoped_refptr<webrtc::MediaStreamInterface>);
   void OnIceCandidate(const webrtc::IceCandidateInterface *);
 
   rclcpp::Node::SharedPtr                          nh_;
@@ -86,13 +84,13 @@ private:
   std::string                                      transport_;
   std::unique_ptr<SignalingChannel>                signaling_channel_;
 
-  rtc::Thread                 *signaling_thread_;
-  std::unique_ptr<rtc::Thread> worker_thread_;
+  webrtc::Thread                 *signaling_thread_;
+  std::unique_ptr<webrtc::Thread> worker_thread_;
 
-  rtc::scoped_refptr<webrtc::PeerConnectionFactoryInterface>            peer_connection_factory_;
+  webrtc::scoped_refptr<webrtc::PeerConnectionFactoryInterface>         peer_connection_factory_;
   std::map<std::string, std::vector<std::shared_ptr<RosVideoRenderer>>> video_renderers_;
-  rtc::scoped_refptr<WebrtcClientObserverProxy>                         webrtc_observer_proxy_;
-  rtc::scoped_refptr<webrtc::PeerConnectionInterface>                   peer_connection_;
+  webrtc::scoped_refptr<WebrtcClientObserverProxy>                      webrtc_observer_proxy_;
+  webrtc::scoped_refptr<webrtc::PeerConnectionInterface>                peer_connection_;
 
   std::map<std::string, std::map<std::string, std::string>> expected_streams_;
 

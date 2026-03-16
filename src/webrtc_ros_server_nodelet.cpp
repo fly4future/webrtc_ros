@@ -8,7 +8,7 @@
 namespace webrtc_ros
 {
 class WebrtcRosServerNodelet : public nodelet::Nodelet {
-public:
+ public:
   ~WebrtcRosServerNodelet() {
     if (server_) {
       server_->stop();
@@ -20,10 +20,9 @@ public:
     server_->run();
   }
 
-private:
+ private:
   boost::shared_ptr<WebrtcRosServer> server_;
 };
-
 
 } // namespace webrtc_ros
 

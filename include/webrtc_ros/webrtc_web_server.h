@@ -7,14 +7,14 @@ namespace webrtc_ros
 {
 
 class SignalingChannel {
-public:
+ public:
   virtual ~SignalingChannel();
   virtual void sendPingMessage()                           = 0;
   virtual void sendTextMessage(const std::string &message) = 0;
 };
 
 class MessageHandler {
-public:
+ public:
   enum Type
   {
     TEXT,
@@ -31,10 +31,10 @@ public:
 typedef MessageHandler *(*SignalingChannelCallback)(void *, SignalingChannel *);
 
 class WebrtcWebServer {
-protected:
+ protected:
   rclcpp::Node::SharedPtr nh_;
 
-public:
+ public:
   static WebrtcWebServer *create(rclcpp::Node::SharedPtr nh, int port, SignalingChannelCallback callback, void *data);
 
   WebrtcWebServer(rclcpp::Node::SharedPtr nh);

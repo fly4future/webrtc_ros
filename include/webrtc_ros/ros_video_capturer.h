@@ -11,47 +11,45 @@
 #include <mutex>
 #include <boost/enable_shared_from_this.hpp>
 
-
 namespace webrtc_ros
 {
 
 class RosVideoCapturerImpl;
 
-class RosVideoCapturer : public rtc::AdaptedVideoTrackSource {
-public:
+class RosVideoCapturer : public webrtc::AdaptedVideoTrackSource {
+ public:
   RosVideoCapturer(const ImageTransportFactory &it, const std::string &topic, const std::string &transport);
   ~RosVideoCapturer() override;
 
-  void imageCallback(const sensor_msgs::msg::Image::ConstPtr &msg);
+  void imageCallback(const sensor_msgs::msg::Image::ConstSharedPtr &msg);
   void Start();
 
   void Stop();
 
   bool                                      is_screencast() const override;
-  absl::optional<bool>                      needs_denoising() const override;
+  std::optional<bool>                       needs_denoising() const override;
   void                                      SetState(webrtc::MediaSourceInterface::SourceState state);
   webrtc::MediaSourceInterface::SourceState state() const override;
   bool                                      remote() const override;
 
-private:
+ private:
   RTC_DISALLOW_COPY_AND_ASSIGN(RosVideoCapturer);
   boost::shared_ptr<RosVideoCapturerImpl> impl_;
 };
-
 
 // The Impl class represents the actual backend that is receiving ROS events
 // It is needed because the VideoCapturer can be destroyed while there is still
 // an image callback queued/running, leading to undefined behavior
 class RosVideoCapturerImpl : public boost::enable_shared_from_this<RosVideoCapturerImpl> {
-public:
+ public:
   RosVideoCapturerImpl(const ImageTransportFactory &it, const std::string &topic, const std::string &transport);
 
-  void imageCallback(const sensor_msgs::msg::Image::ConstPtr &msg);
+  void imageCallback(const sensor_msgs::msg::Image::ConstSharedPtr &msg);
 
   void Start(RosVideoCapturer *capturer);
   void Stop();
 
-private:
+ private:
   RTC_DISALLOW_COPY_AND_ASSIGN(RosVideoCapturerImpl);
 
   ImageTransportFactory             it_;
@@ -60,6 +58,5 @@ private:
   std::mutex                        state_mutex_;
   RosVideoCapturer                 *capturer_;
 };
-
 
 } // namespace webrtc_ros

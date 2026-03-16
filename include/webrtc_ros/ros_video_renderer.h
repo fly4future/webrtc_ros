@@ -3,16 +3,15 @@
 #include <api/media_stream_interface.h>
 #include <image_transport/image_transport.hpp>
 
-
 namespace webrtc_ros
 {
 
-class RosVideoRenderer : public rtc::VideoSinkInterface<webrtc::VideoFrame> {
-public:
+class RosVideoRenderer : public webrtc::VideoSinkInterface<webrtc::VideoFrame> {
+ public:
   RosVideoRenderer(std::shared_ptr<image_transport::ImageTransport> it, const std::string &topic);
   virtual void OnFrame(const webrtc::VideoFrame &frame) override;
 
-private:
+ private:
   RTC_DISALLOW_COPY_AND_ASSIGN(RosVideoRenderer);
   std::shared_ptr<image_transport::ImageTransport> it_;
   const std::string                                topic_;

@@ -4,7 +4,6 @@
 #include <json/json.h>
 #include <api/jsep.h>
 
-
 namespace webrtc_ros
 {
 
@@ -27,7 +26,7 @@ struct ConfigureAction
 };
 
 class ConfigureMessage {
-public:
+ public:
   static std::string kActionsFieldName;
   static std::string kConfigureType;
 

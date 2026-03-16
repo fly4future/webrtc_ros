@@ -8,7 +8,7 @@ namespace webrtc_ros
 {
 
 class WebrtcRosMessage {
-public:
+ public:
   static std::string kMessageTypeFieldName;
 
   static bool isType(const Json::Value &message_json, const std::string &type);

@@ -4,12 +4,11 @@
 #include <json/json.h>
 #include <api/jsep.h>
 
-
 namespace webrtc_ros
 {
 
 class SdpMessage {
-public:
+ public:
   static std::string kSdpFieldName;
   static std::string kSdpOfferType;
   static std::string kSdpAnswerType;

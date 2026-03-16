@@ -1,6 +1,4 @@
 #include "webrtc_ros/ros_video_capturer.h"
-#include "rtc_base/bind.h"
-
 #include <rclcpp/rclcpp.hpp>
 #include <cv_bridge/cv_bridge.hpp>
 #include <boost/enable_shared_from_this.hpp>
@@ -8,16 +6,13 @@
 namespace webrtc_ros
 {
 
-
 RosVideoCapturer::RosVideoCapturer(const ImageTransportFactory &it, const std::string &topic, const std::string &transport)
     : impl_(new RosVideoCapturerImpl(it, topic, transport)) {
 }
 
-
 RosVideoCapturer::~RosVideoCapturer() {
   Stop(); // Make sure were stopped so callbacks stop
 }
-
 
 void RosVideoCapturer::Start() {
   impl_->Start(this);
@@ -27,11 +22,11 @@ void RosVideoCapturer::Stop() {
   impl_->Stop();
 }
 
-void RosVideoCapturer::imageCallback(const sensor_msgs::msg::Image::ConstPtr &msg) {
+void RosVideoCapturer::imageCallback(const sensor_msgs::msg::Image::ConstSharedPtr &msg) {
   cv::Mat bgr;
   if (msg->encoding.find("F") != std::string::npos) {
     // scale floating point images
-    cv::Mat         float_image_bridge = cv_bridge::toCvShare(msg, msg->encoding)->image;
+    cv::Mat         float_image_bridge = cv_bridge::toCvShare(*msg, msg->encoding)->image;
     cv::Mat_<float> float_image        = float_image_bridge;
     double          max_val;
     cv::minMaxIdx(float_image, 0, &max_val);
@@ -43,7 +38,7 @@ void RosVideoCapturer::imageCallback(const sensor_msgs::msg::Image::ConstPtr &ms
     float_image.convertTo(orig, CV_8U);
     cv::cvtColor(orig, bgr, CV_GRAY2BGR);
   } else {
-    bgr = cv_bridge::toCvShare(msg, "bgr8")->image;
+    bgr = cv_bridge::toCvShare(*msg, "bgr8")->image;
   }
   int64_t  camera_time_us = msg->header.stamp.nanosec / 1000;
   int64_t  system_time_us = rclcpp::Clock().now().nanoseconds() / 1000;
@@ -74,13 +69,11 @@ void RosVideoCapturer::imageCallback(const sensor_msgs::msg::Image::ConstPtr &ms
   }
 }
 
-
 bool RosVideoCapturer::is_screencast() const {
   return false;
 }
 
-
-absl::optional<bool> RosVideoCapturer::needs_denoising() const {
+std::optional<bool> RosVideoCapturer::needs_denoising() const {
   return false;
 }
 webrtc::MediaSourceInterface::SourceState RosVideoCapturer::state() const {
@@ -89,7 +82,6 @@ webrtc::MediaSourceInterface::SourceState RosVideoCapturer::state() const {
 bool RosVideoCapturer::remote() const {
   return false;
 }
-
 
 RosVideoCapturerImpl::RosVideoCapturerImpl(const ImageTransportFactory &it, const std::string &topic, const std::string &transport)
     : it_(it)
@@ -105,7 +97,6 @@ void RosVideoCapturerImpl::Start(RosVideoCapturer *capturer) {
   capturer_ = capturer;
 }
 
-
 void RosVideoCapturerImpl::Stop() {
   // Make sure to do this before aquiring lock so we don't deadlock with callback
   // This needs to aquire a lock that is heald which callbacks are dispatched
@@ -118,8 +109,7 @@ void RosVideoCapturerImpl::Stop() {
   capturer_ = nullptr;
 }
 
-
-void RosVideoCapturerImpl::imageCallback(const sensor_msgs::msg::Image::ConstPtr &msg) {
+void RosVideoCapturerImpl::imageCallback(const sensor_msgs::msg::Image::ConstSharedPtr &msg) {
   std::unique_lock<std::mutex> lock(state_mutex_);
   if (capturer_ == nullptr)
     return;

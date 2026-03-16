@@ -8,28 +8,27 @@
 #include <map>
 #include <memory>
 #include <mutex>
-#include <atomic>
 
 namespace webrtc_ros
 {
 
 /* Only subscribe once to each image topic even with multiple listeners */
 class ImageTransportFactory {
-private:
+ private:
   using ID = unsigned int;
   class Dispatcher;
 
-public:
+ public:
   using Callback = std::function<void(const sensor_msgs::msg::Image::ConstSharedPtr &msg)>;
   class Subscriber {
     friend class ImageTransportFactory;
 
-  public:
+   public:
     Subscriber() {
     }
     void shutdown();
 
-  private:
+   private:
     Subscriber(Callback cb, const std::shared_ptr<Dispatcher> &d);
     struct Data
     {
@@ -45,15 +44,15 @@ public:
   ImageTransportFactory(rclcpp::Node::SharedPtr node, std::shared_ptr<image_transport::ImageTransport> it);
   Subscriber subscribe(const std::string &topic, const Callback &cb, const std::string &transport);
 
-private:
+ private:
   class Dispatcher {
-  public:
+   public:
     Dispatcher(rclcpp::Node::SharedPtr node, std::shared_ptr<image_transport::ImageTransport> &it, const std::string &topic, const std::string &transport);
     ~Dispatcher();
     ID   addCallback(Callback cb);
     void removeCallback(ID id);
 
-  private:
+   private:
     Dispatcher(const Dispatcher &)                            = delete;
     void                        operator=(const Dispatcher &) = delete;
     void                        dispatch(const sensor_msgs::msg::Image::ConstSharedPtr &msg);
@@ -76,6 +75,5 @@ private:
   std::shared_ptr<Data>   data_;
   rclcpp::Node::SharedPtr node_;
 };
-
 
 } // namespace webrtc_ros

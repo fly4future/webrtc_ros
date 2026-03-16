@@ -9,7 +9,7 @@ namespace webrtc_ros
 {
 
 class IceCandidateMessage {
-public:
+ public:
   static std::string kIceCandidateType;
   static std::string kSdpMidFieldName;
   static std::string kSdpMlineIndexFieldName;

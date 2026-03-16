@@ -1,4 +1,5 @@
 #include "webrtc_ros/webrtc_ros_json_parser.h"
+#include <limits>
 
 namespace webrtc_ros
 {
@@ -59,7 +60,6 @@ bool WebrtcRosJsonParser::GetIntFromJson(const Json::Value &in, int *out) {
   }
   return ret;
 }
-
 
 std::string WebrtcRosJsonParser::ToString(const bool b) {
   return b ? "true" : "false";

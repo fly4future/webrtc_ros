@@ -5,11 +5,9 @@
 #include <webrtc_ros/ice_candidate_message.h>
 // #include "talk/media/devices/devicemanager.h"
 #include <api/video/video_source_interface.h>
-#include <rtc_base/bind.h>
 #include <webrtc_ros/ros_video_capturer.h>
-#include <webrtc_ros_msgs/srv/get_ice_servers.hpp>
+#include <webrtc_ros/srv/get_ice_servers.hpp>
 
-#include <chrono>
 using namespace std::chrono_literals;
 
 namespace webrtc_ros
@@ -29,17 +27,17 @@ void WebrtcClientObserverProxy::OnFailure(webrtc::RTCError error) {
   if (client)
     client->OnSessionDescriptionFailure(error.message());
 }
-void WebrtcClientObserverProxy::OnAddStream(rtc::scoped_refptr<webrtc::MediaStreamInterface> media_stream) {
+void WebrtcClientObserverProxy::OnAddStream(webrtc::scoped_refptr<webrtc::MediaStreamInterface> media_stream) {
   WebrtcClientPtr client = client_weak_.lock();
   if (client)
     client->OnAddRemoteStream(media_stream);
 }
-void WebrtcClientObserverProxy::OnRemoveStream(rtc::scoped_refptr<webrtc::MediaStreamInterface> media_stream) {
+void WebrtcClientObserverProxy::OnRemoveStream(webrtc::scoped_refptr<webrtc::MediaStreamInterface> media_stream) {
   WebrtcClientPtr client = client_weak_.lock();
   if (client)
     client->OnRemoveRemoteStream(media_stream);
 }
-void WebrtcClientObserverProxy::OnDataChannel(rtc::scoped_refptr<webrtc::DataChannelInterface>) {
+void WebrtcClientObserverProxy::OnDataChannel(webrtc::scoped_refptr<webrtc::DataChannelInterface>) {
 }
 void WebrtcClientObserverProxy::OnRenegotiationNeeded() {
 }
@@ -57,14 +55,13 @@ void WebrtcClientObserverProxy::OnIceCandidatesRemoved(const std::vector<cricket
 void WebrtcClientObserverProxy::OnSignalingChange(webrtc::PeerConnectionInterface::SignalingState) {
 }
 
-
 WebrtcClient::WebrtcClient(rclcpp::Node::SharedPtr nh, const ImageTransportFactory &itf, const std::string &transport, SignalingChannel *signaling_channel)
     : nh_(nh)
     , itf_(itf)
     , transport_(transport)
     , signaling_channel_(signaling_channel)
-    , signaling_thread_(rtc::Thread::Current())
-    , worker_thread_(rtc::Thread::CreateWithSocketServer()) {
+    , signaling_thread_(webrtc::Thread::Current())
+    , worker_thread_(webrtc::Thread::CreateWithSocketServer()) {
   worker_thread_->Start();
 
   it_ = std::make_shared<image_transport::ImageTransport>(nh);
@@ -98,7 +95,6 @@ bool WebrtcClient::valid() {
   return keep_alive_this_ != nullptr;
 }
 
-
 bool WebrtcClient::initPeerConnection() {
   if (!valid()) {
     RCLCPP_ERROR(nh_->get_logger(), "Tried to initialize invalidated webrtc client");
@@ -107,10 +103,10 @@ bool WebrtcClient::initPeerConnection() {
   if (!peer_connection_) {
     webrtc::PeerConnectionInterface::RTCConfiguration config;
 
-    auto iceClient = nh_->create_client<webrtc_ros_msgs::srv::GetIceServers>("get_ice_servers");
+    auto iceClient = nh_->create_client<webrtc_ros::srv::GetIceServers>("get_ice_servers");
 
     if (iceClient->wait_for_service(10s)) {
-      auto request = std::make_shared<webrtc_ros_msgs::srv::GetIceServers::Request>();
+      auto request = std::make_shared<webrtc_ros::srv::GetIceServers::Request>();
       auto result  = iceClient->async_send_request(request);
 
       // Wait for the result.
@@ -128,7 +124,7 @@ bool WebrtcClient::initPeerConnection() {
     }
 
     WebrtcClientWeakPtr weak_this(keep_alive_this_);
-    webrtc_observer_proxy_ = new rtc::RefCountedObject<WebrtcClientObserverProxy>(weak_this);
+    webrtc_observer_proxy_ = new webrtc::RefCountedObject<WebrtcClientObserverProxy>(weak_this);
     peer_connection_       = peer_connection_factory_->CreatePeerConnection(config, nullptr, nullptr, webrtc_observer_proxy_.get());
     if (!peer_connection_.get()) {
       RCLCPP_WARN(nh_->get_logger(), "Could not create peer connection");
@@ -142,17 +138,17 @@ bool WebrtcClient::initPeerConnection() {
 }
 
 class MessageHandlerImpl : public MessageHandler {
-public:
+ public:
   MessageHandlerImpl(WebrtcClientWeakPtr weak_this)
       : weak_this_(weak_this) {
   }
   void handle_message(MessageHandler::Type type, const std::string &raw) {
     WebrtcClientPtr _this = weak_this_.lock();
     if (_this)
-      _this->signaling_thread_->Invoke<void>(RTC_FROM_HERE, rtc::Bind(&WebrtcClient::handle_message, _this.get(), type, raw));
+      _this->signaling_thread_->Invoke<void>(RTC_FROM_HERE, std::bind(&WebrtcClient::handle_message, _this.get(), type, raw));
   }
 
-private:
+ private:
   WebrtcClientWeakPtr weak_this_;
 };
 
@@ -173,9 +169,8 @@ void WebrtcClient::ping_timer_callback() {
   }
 }
 
-
 class DummySetSessionDescriptionObserver : public webrtc::SetSessionDescriptionObserver {
-public:
+ public:
   virtual void OnSuccess() {
     //// RCLCPP_DEBUG(_node->get_logger(),__FUNCTION__);
   }
@@ -183,7 +178,7 @@ public:
     // RCLCPP_WARN_STREAM(nh_->get_logger(), __FUNCTION__ << " " << error);
   }
 
-protected:
+ protected:
   DummySetSessionDescriptionObserver() {
   }
   ~DummySetSessionDescriptionObserver() {
@@ -241,7 +236,7 @@ void WebrtcClient::handle_message(MessageHandler::Type type, const std::string &
         if (action.type == ConfigureAction::kAddStreamActionName) {
           FIND_PROPERTY_OR_CONTINUE("id", stream_id);
 
-          rtc::scoped_refptr<webrtc::MediaStreamInterface> stream = peer_connection_factory_->CreateLocalMediaStream(stream_id);
+          webrtc::scoped_refptr<webrtc::MediaStreamInterface> stream = peer_connection_factory_->CreateLocalMediaStream(stream_id);
 
           if (!peer_connection_->AddStream(stream)) {
             RCLCPP_WARN(nh_->get_logger(), "Adding stream to PeerConnection failed");
@@ -250,7 +245,7 @@ void WebrtcClient::handle_message(MessageHandler::Type type, const std::string &
         } else if (action.type == ConfigureAction::kRemoveStreamActionName) {
           FIND_PROPERTY_OR_CONTINUE("id", stream_id);
 
-          rtc::scoped_refptr<webrtc::MediaStreamInterface> stream = peer_connection_factory_->CreateLocalMediaStream(stream_id);
+          webrtc::scoped_refptr<webrtc::MediaStreamInterface> stream = peer_connection_factory_->CreateLocalMediaStream(stream_id);
 
           if (!stream) {
             RCLCPP_WARN_STREAM(nh_->get_logger(), "Stream not found with id: " << stream_id);
@@ -277,8 +272,8 @@ void WebrtcClient::handle_message(MessageHandler::Type type, const std::string &
 
           if (video_type == "ros_image") {
             RCLCPP_DEBUG_STREAM(nh_->get_logger(), "Subscribing to ROS topic: " << video_path);
-            rtc::scoped_refptr<RosVideoCapturer>            capturer(new rtc::RefCountedObject<RosVideoCapturer>(itf_, video_path, transport_));
-            rtc::scoped_refptr<webrtc::VideoTrackInterface> video_track(peer_connection_factory_->CreateVideoTrack(track_id, capturer));
+            webrtc::scoped_refptr<RosVideoCapturer>            capturer(new webrtc::RefCountedObject<RosVideoCapturer>(itf_, video_path, transport_));
+            webrtc::scoped_refptr<webrtc::VideoTrackInterface> video_track(peer_connection_factory_->CreateVideoTrack(track_id, capturer));
             stream->AddTrack(video_track);
             capturer->Start();
           } else {
@@ -304,8 +299,8 @@ void WebrtcClient::handle_message(MessageHandler::Type type, const std::string &
           }
 
           if (audio_type == "local") {
-            cricket::AudioOptions                           options;
-            rtc::scoped_refptr<webrtc::AudioTrackInterface> audio_track(
+            cricket::AudioOptions                              options;
+            webrtc::scoped_refptr<webrtc::AudioTrackInterface> audio_track(
                 peer_connection_factory_->CreateAudioTrack(track_id, peer_connection_factory_->CreateAudioSource(options)));
             stream->AddTrack(audio_track);
           } else {
@@ -355,7 +350,8 @@ void WebrtcClient::handle_message(MessageHandler::Type type, const std::string &
       }
 
       RCLCPP_DEBUG_STREAM(nh_->get_logger(), "Received remote description: " << message.sdp);
-      rtc::scoped_refptr<DummySetSessionDescriptionObserver> dummy_set_description_observer(new rtc::RefCountedObject<DummySetSessionDescriptionObserver>());
+      webrtc::scoped_refptr<DummySetSessionDescriptionObserver> dummy_set_description_observer(
+          new webrtc::RefCountedObject<DummySetSessionDescriptionObserver>());
       peer_connection_->SetRemoteDescription(dummy_set_description_observer, session_description);
     } else if (IceCandidateMessage::isIceCandidate(message_json)) {
       IceCandidateMessage message;
@@ -390,7 +386,7 @@ void WebrtcClient::handle_message(MessageHandler::Type type, const std::string &
 }
 
 void WebrtcClient::OnSessionDescriptionSuccess(webrtc::SessionDescriptionInterface *description) {
-  rtc::scoped_refptr<DummySetSessionDescriptionObserver> dummy_set_description_observer(new rtc::RefCountedObject<DummySetSessionDescriptionObserver>());
+  webrtc::scoped_refptr<DummySetSessionDescriptionObserver> dummy_set_description_observer(new webrtc::RefCountedObject<DummySetSessionDescriptionObserver>());
   peer_connection_->SetLocalDescription(dummy_set_description_observer, description);
 
   SdpMessage message;
@@ -415,7 +411,7 @@ void WebrtcClient::OnIceCandidate(const webrtc::IceCandidateInterface *candidate
   }
 }
 
-void WebrtcClient::OnAddRemoteStream(rtc::scoped_refptr<webrtc::MediaStreamInterface> media_stream) {
+void WebrtcClient::OnAddRemoteStream(webrtc::scoped_refptr<webrtc::MediaStreamInterface> media_stream) {
   std::string stream_id = media_stream->id();
   if (expected_streams_.find(stream_id) != expected_streams_.end()) {
     for (auto &track : media_stream->GetVideoTracks()) {
@@ -431,7 +427,7 @@ void WebrtcClient::OnAddRemoteStream(rtc::scoped_refptr<webrtc::MediaStreamInter
 
         if (video_type == "ros_image") {
           auto renderer = std::make_shared<RosVideoRenderer>(it_, video_path);
-          track->AddOrUpdateSink(renderer.get(), rtc::VideoSinkWants());
+          track->AddOrUpdateSink(renderer.get(), webrtc::VideoSinkWants());
           video_renderers_[stream_id].push_back(renderer);
         } else {
           RCLCPP_WARN_STREAM(nh_->get_logger(), "Unknown video destination type: " << video_type);
@@ -447,7 +443,7 @@ void WebrtcClient::OnAddRemoteStream(rtc::scoped_refptr<webrtc::MediaStreamInter
     RCLCPP_WARN_STREAM(nh_->get_logger(), "Unexpected stream: " << stream_id);
   }
 }
-void WebrtcClient::OnRemoveRemoteStream(rtc::scoped_refptr<webrtc::MediaStreamInterface> media_stream) {
+void WebrtcClient::OnRemoveRemoteStream(webrtc::scoped_refptr<webrtc::MediaStreamInterface> media_stream) {
   std::string stream_id = media_stream->id();
   video_renderers_.erase(stream_id);
 }

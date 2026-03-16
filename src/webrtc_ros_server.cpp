@@ -2,27 +2,25 @@
 #include <webrtc_ros/webrtc_ros_server.h>
 #include "rtc_base/ssl_adapter.h"
 
-#include "rtc_base/bind.h"
-
 namespace webrtc_ros
 {
 
 MessageHandler *WebrtcRosServer_handle_new_signaling_channel(void *_this, SignalingChannel *channel) {
   return ((WebrtcRosServer *)_this)
       ->signaling_thread_->Invoke<MessageHandler *>(RTC_FROM_HERE,
-                                                    rtc::Bind(&WebrtcRosServer::handle_new_signaling_channel, (WebrtcRosServer *)_this, channel));
+                                                    std::bind(&WebrtcRosServer::handle_new_signaling_channel, (WebrtcRosServer *)_this, channel));
 }
 
 WebrtcRosServer::WebrtcRosServer(rclcpp::Node::SharedPtr nh)
     : nh_(nh)
     , itf_(nh, std::make_shared<image_transport::ImageTransport>(nh)) {
-  rtc::InitializeSSL();
+  webrtc::InitializeSSL();
 
   int port;
   nh_->get_parameter_or<int>("port", port, 8080);
   nh_->get_parameter_or<std::string>("image_transport", image_transport_, std::string("raw"));
 
-  signaling_thread_ = rtc::Thread::CreateWithSocketServer();
+  signaling_thread_ = webrtc::Thread::CreateWithSocketServer();
   signaling_thread_->Start();
   server_.reset(WebrtcWebServer::create(nh_, port, &WebrtcRosServer_handle_new_signaling_channel, this));
 }
@@ -73,7 +71,7 @@ WebrtcRosServer::~WebrtcRosServer() {
     shutdown_cv_.wait(lock, [this] { return this->clients_.size() == 0; });
   }
 
-  rtc::CleanupSSL();
+  webrtc::CleanupSSL();
 }
 
 void WebrtcRosServer::run() {

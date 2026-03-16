@@ -28,7 +28,6 @@ bool IceCandidateMessage::fromIceCandidate(const webrtc::IceCandidateInterface &
   return true;
 }
 
-
 webrtc::IceCandidateInterface *IceCandidateMessage::createIceCandidate() {
   webrtc::SdpParseError          err;
   webrtc::IceCandidateInterface *result = webrtc::CreateIceCandidate(sdp_mid, sdp_mline_index, candidate, &err);
@@ -48,7 +47,6 @@ std::string IceCandidateMessage::toJson() {
   message_json[kCandidateFieldName]                     = candidate;
   return writer.write(message_json);
 }
-
 
 IceCandidateMessage::IceCandidateMessage() {
 }
