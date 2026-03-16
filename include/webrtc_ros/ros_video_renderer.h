@@ -1,6 +1,6 @@
 #pragma once
 
-#include <api/media_stream_interface.h>
+#include <webrtc/api/media_stream_interface.h>
 #include <image_transport/image_transport.hpp>
 
 namespace webrtc_ros

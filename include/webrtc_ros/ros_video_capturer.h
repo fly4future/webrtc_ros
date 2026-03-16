@@ -1,7 +1,7 @@
 #pragma once
 
-#include <modules/video_capture/video_capture.h>
-#include <modules/video_capture/video_capture_factory.h>
+#include <webrtc/modules/video_capture/video_capture.h>
+#include <webrtc/modules/video_capture/video_capture_factory.h>
 #include <media/base/adapted_video_track_source.h>
 #include <api/video/video_source_interface.h>
 #include <api/video/i420_buffer.h>

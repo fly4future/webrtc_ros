@@ -1,11 +1,14 @@
 #include <rclcpp/rclcpp.hpp>
+
 #include <webrtc_ros/webrtc_web_server.h>
 #include <boost/shared_ptr.hpp>
 #include <boost/scoped_ptr.hpp>
 #include <boost/foreach.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+
 #include <sensor_msgs/msg/image.h>
 #include <sensor_msgs/msg/camera_info.h>
+
 #include <async_web_server_cpp/http_reply.hpp>
 #include <async_web_server_cpp/websocket_request_handler.hpp>
 #include <async_web_server_cpp/http_server.hpp>
@@ -110,13 +113,13 @@ class WebrtcWebServerImpl : public WebrtcWebServer {
     boost::shared_ptr<MessageHandler> callback_;
   };
 
-  async_web_server_cpp::WebsocketConnection::MessageHandler handle_webrtc_websocket(const async_web_server_cpp::HttpRequest     &request,
-                                                                                    async_web_server_cpp::WebsocketConnectionPtr websocket) {
+  async_web_server_cpp::WebsocketConnection::MessageHandler handle_webrtc_websocket([[maybe_unused]] const async_web_server_cpp::HttpRequest &request,
+                                                                                    async_web_server_cpp::WebsocketConnectionPtr              websocket) {
     return WebsocketMessageHandlerWrapper(callback_(data_, new SignalingChannelImpl(websocket)));
   }
 
-  bool handle_list_streams(const async_web_server_cpp::HttpRequest &request, async_web_server_cpp::HttpConnectionPtr connection, const char *begin,
-                           const char *end) {
+  bool handle_list_streams([[maybe_unused]] const async_web_server_cpp::HttpRequest &request, async_web_server_cpp::HttpConnectionPtr connection,
+                           [[maybe_unused]] const char *begin, [[maybe_unused]] const char *end) {
     std::string topicPrefix = "rt"; // get_topic_names_and_types prepends this; needs to be removed.
     auto        node        = std::make_shared<rclcpp::Node>("webrtc_web_server");
     auto        graph       = node->get_node_graph_interface();

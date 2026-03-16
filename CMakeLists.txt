@@ -1,38 +1,57 @@
 cmake_minimum_required(VERSION 3.5)
 project(webrtc_ros)
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Enable compiler warnings
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic -fno-omit-frame-pointer)
+endif()
+
+# Webrtc definitions
+add_definitions(-DWEBRTC_POSIX -DWEBRTC_LINUX)
+
+# Ros build tools
 find_package(ament_cmake REQUIRED)
-find_package(rclcpp REQUIRED)
-find_package(async_web_server_cpp REQUIRED)
-find_package(cv_bridge REQUIRED)
-find_package(image_transport REQUIRED)
-find_package(std_msgs REQUIRED)
-find_package(ament_index_cpp REQUIRED)
-find_package(webrtc REQUIRED)
-find_package(X11 REQUIRED)
-find_package(jsoncpp REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
+
+set(ROS_DEPS
+  # Base
+  ament_index_cpp
+  rclcpp
+  rclcpp_components
+  # Messages
+  std_msgs
+  sensor_msgs
+  # Image processing
+  cv_bridge
+  image_transport
+  # Web
+  async_web_server_cpp
+)
+
+foreach(DEP IN LISTS ROS_DEPS)
+  find_package(${DEP} REQUIRED)
+endforeach()
+
+set(EXTERNAL_DEPS
+  webrtc
+  OpenCV
+  X11
+  jsoncpp
+)
+
+## | ----------------- Message and service generation ----------------- |
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/IceServer.msg"
   "srv/GetIceServers.srv"
 )
 
-###########
-## Build ##
-###########
+## | ----------------- Build executable ----------------- |
 
-include_directories(
-  include
-  include/${PROJECT_NAME}
-  ${OpenCV_INCLUDE_DIRS}
-  ${webrtc_INCLUDE_DIRS}
-  /usr/include/webrtc/3rdparty
-)
-add_definitions(${webrtc_DEFINITIONS})
-
-
-add_executable(${PROJECT_NAME}_server_node
+add_library(WebrtcRos_Server SHARED
   src/webrtc_ros_server_node.cpp
   src/webrtc_web_server.cpp
   src/configure_message.cpp
@@ -47,73 +66,58 @@ add_executable(${PROJECT_NAME}_server_node
   src/webrtc_ros_json_parser.cpp
 )
 
-target_include_directories(${PROJECT_NAME}_server_node
-  PRIVATE
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
-
-ament_target_dependencies(
-  ${PROJECT_NAME}_server_node
-  async_web_server_cpp
-  cv_bridge
-  image_transport
-  rclcpp
-  std_msgs
-  ament_index_cpp
-)
-
+# Link against the generated message type support libraries
 rosidl_get_typesupport_target(cpp_typesupport_target
   ${PROJECT_NAME} rosidl_typesupport_cpp)
+target_link_libraries(WebrtcRos_Server PUBLIC "${cpp_typesupport_target}")
 
-target_link_libraries(${PROJECT_NAME}_server_node
+ament_target_dependencies(WebrtcRos_Server PUBLIC
+  ${ROS_DEPS}
+)
+
+target_include_directories(WebrtcRos_Server PUBLIC
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include/${PROJECT_NAME}>
+  # External
+  ${OpenCV_INCLUDE_DIRS}
+  ${webrtc_INCLUDE_DIRS}
+  /usr/include/webrtc
+  /usr/include/webrtc/3rdparty
+  /usr/include/jsoncpp
+)
+
+target_link_libraries(WebrtcRos_Server PUBLIC
   ${webrtc_LIBRARIES}
-  webrtc
-  jsoncpp_lib
   ${X11_LIBRARIES}
-  ${cpp_typesupport_target}
 )
 
-set_target_properties(${PROJECT_NAME}_server_node PROPERTIES
-  CXX_STANDARD 20
-  CXX_STANDARD_REQUIRED ON
+rclcpp_components_register_nodes(WebrtcRos_Server "webrtc_ros::WebrtcRosServer")
+
+# add_definitions(${webrtc_DEFINITIONS})
+
+## --------------------------------------------------------------
+## |                           install                          |
+## --------------------------------------------------------------
+
+install(
+  TARGETS WebrtcRos_Server
+  EXPORT export_${PROJECT_NAME}
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
 )
 
-#############
-## Install ##
-#############
-install(TARGETS
-  ${PROJECT_NAME}_server_node
-  DESTINATION lib/${PROJECT_NAME})
-
-# Install web files
-install(DIRECTORY web
-  DESTINATION share/${PROJECT_NAME}
-  PATTERN "Gruntfile.js" EXCLUDE
-  PATTERN "node_modules" EXCLUDE
-  PATTERN "package.json" EXCLUDE
-  PATTERN ".gitignore" EXCLUDE
-)
-
-# Install launch files
-install(DIRECTORY
-  launch
-  DESTINATION share/${PROJECT_NAME}
-)
-
-# Install license files
-install(FILES
-  LICENSE
-  DESTINATION share/${PROJECT_NAME}/
-)
-install(FILES
-  LICENSE_webrtc_adapter
-  DESTINATION share/${PROJECT_NAME}/
+install(
+  DIRECTORY launch
+  DESTINATION "share/${PROJECT_NAME}"
 )
 
 install(DIRECTORY scripts
   DESTINATION share/${PROJECT_NAME}/scripts
 )
 
+ament_export_targets(
+  export_${PROJECT_NAME} HAS_LIBRARY_TARGET
+)
 
 ament_package()

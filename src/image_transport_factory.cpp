@@ -4,8 +4,8 @@ namespace webrtc_ros
 {
 
 ImageTransportFactory::ImageTransportFactory(rclcpp::Node::SharedPtr node, std::shared_ptr<image_transport::ImageTransport> it)
-    : node_(node)
-    , data_(std::make_shared<Data>(it)) {
+    : data_(std::make_shared<Data>(it))
+    , node_(node) {
 }
 
 ImageTransportFactory::Subscriber ImageTransportFactory::subscribe(const std::string &topic, const Callback &cb, const std::string &transport) {

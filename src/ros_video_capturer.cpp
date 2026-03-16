@@ -40,11 +40,11 @@ void RosVideoCapturer::imageCallback(const sensor_msgs::msg::Image::ConstSharedP
   } else {
     bgr = cv_bridge::toCvShare(msg, "bgr8")->image;
   }
-  int64_t  camera_time_us = msg->header.stamp.nanosec / 1000;
+  // int64_t  camera_time_us = msg->header.stamp.nanosec / 1000;
   int64_t  system_time_us = rclcpp::Clock().now().nanoseconds() / 1000;
   cv::Rect roi;
   int      out_width, out_height;
-  int64_t  translated_camera_time_us;
+  // int64_t  translated_camera_time_us;
   if (AdaptFrame(bgr.cols, bgr.rows, system_time_us, &out_width, &out_height, &roi.width, &roi.height, &roi.x, &roi.y)) {
     cv::Mat yuv;
     if (out_width == roi.width && out_height == roi.height) {

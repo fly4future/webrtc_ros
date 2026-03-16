@@ -1,16 +1,16 @@
 #include <rclcpp/rclcpp.hpp>
+
 #include <webrtc_ros/webrtc_client.h>
 #include <webrtc_ros/webrtc_ros_message.h>
 #include <webrtc_ros/sdp_message.h>
 #include <webrtc_ros/ice_candidate_message.h>
-// #include "talk/media/devices/devicemanager.h"
 #include <api/video/video_source_interface.h>
 #include <api/audio_options.h>
 #include <api/video_codecs/builtin_video_encoder_factory.h>
 #include <api/video_codecs/builtin_video_decoder_factory.h>
+
 #include <webrtc_ros/ros_video_capturer.h>
 #include <webrtc_ros/srv/get_ice_servers.hpp>
-#include <chrono>
 
 using namespace std::chrono_literals;
 
@@ -111,7 +111,7 @@ bool WebrtcClient::initPeerConnection() {
 
       // Wait for the result.
       if (rclcpp::spin_until_future_complete(nh_, result) == rclcpp::FutureReturnCode::SUCCESS) {
-        for (int i = 0; i < result.get()->servers.size(); i++) {
+        for (size_t i = 0; i < result.get()->servers.size(); i++) {
           webrtc::PeerConnectionInterface::IceServer server;
           server.uri = result.get()->servers[i].uri;
           if (!result.get()->servers[i].username.empty() && !result.get()->servers[i].password.empty()) {
@@ -178,7 +178,7 @@ class DummySetSessionDescriptionObserver : public webrtc::SetSessionDescriptionO
   virtual void OnSuccess() {
     //// RCLCPP_DEBUG(_node->get_logger(),__FUNCTION__);
   }
-  virtual void OnFailure(webrtc::RTCError error) {
+  virtual void OnFailure([[maybe_unused]] webrtc::RTCError error) {
     // RCLCPP_WARN_STREAM(nh_->get_logger(), __FUNCTION__ << " " << error);
   }
 
