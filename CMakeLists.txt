@@ -49,10 +49,9 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/GetIceServers.srv"
 )
 
-## | ----------------- Build executable ----------------- |
+## | ----------------- Build libray ----------------- |
 
 add_library(WebrtcRos_Server SHARED
-  src/webrtc_ros_server_node.cpp
   src/webrtc_web_server.cpp
   src/configure_message.cpp
   src/ice_candidate_message.cpp
@@ -91,16 +90,22 @@ target_link_libraries(WebrtcRos_Server PUBLIC
   ${X11_LIBRARIES}
 )
 
-rclcpp_components_register_nodes(WebrtcRos_Server "webrtc_ros::WebrtcRosServer")
+## | ----------------- Build executable ----------------- |
 
-# add_definitions(${webrtc_DEFINITIONS})
+add_executable(webrtc_ros_server_node
+  src/webrtc_ros_server_node.cpp
+)
+
+target_link_libraries(webrtc_ros_server_node PUBLIC
+  WebrtcRos_Server
+)
 
 ## --------------------------------------------------------------
 ## |                           install                          |
 ## --------------------------------------------------------------
 
 install(
-  TARGETS WebrtcRos_Server
+  TARGETS webrtc_ros_server_node
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
@@ -108,16 +113,18 @@ install(
 )
 
 install(
-  DIRECTORY launch
-  DESTINATION "share/${PROJECT_NAME}"
+  DIRECTORY include/${PROJECT_NAME}
+  DESTINATION include/${PROJECT_NAME}
 )
 
-install(DIRECTORY scripts
-  DESTINATION share/${PROJECT_NAME}/scripts
+install(
+  DIRECTORY launch config scripts
+  DESTINATION share/${PROJECT_NAME}
 )
 
 ament_export_targets(
   export_${PROJECT_NAME} HAS_LIBRARY_TARGET
 )
+ament_export_include_directories(include)
 
 ament_package()
