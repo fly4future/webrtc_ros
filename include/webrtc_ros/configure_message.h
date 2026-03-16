@@ -1,5 +1,4 @@
-#ifndef WEBRTC_ROS_CONFIGURE_MESSAGE_H_
-#define WEBRTC_ROS_CONFIGURE_MESSAGE_H_
+#pragma once
 
 #include <webrtc_ros/webrtc_ros_message.h>
 #include <json/json.h>
@@ -43,5 +42,3 @@ public:
 };
 
 } // namespace webrtc_ros
-
-#endif

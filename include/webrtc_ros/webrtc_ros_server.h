@@ -1,5 +1,4 @@
-#ifndef WEBRTC_ROS_WEBRTC_ROS_SERVER_H_
-#define WEBRTC_ROS_WEBRTC_ROS_SERVER_H_
+#pragma once
 
 #include <rclcpp/rclcpp.hpp>
 #include <boost/shared_ptr.hpp>
@@ -37,5 +36,3 @@ private:
 };
 
 } // namespace webrtc_ros
-
-#endif

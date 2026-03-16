@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import json
 import rospy
 import requests
 from webrtc_ros.msg import IceServer

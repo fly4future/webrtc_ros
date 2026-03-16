@@ -7,28 +7,24 @@
 
 namespace webrtc_ros
 {
-  class WebrtcRosServerNodelet : public nodelet::Nodelet
-{
+class WebrtcRosServerNodelet : public nodelet::Nodelet {
 public:
-  ~WebrtcRosServerNodelet()
-  {
-    if(server_)
-    {
+  ~WebrtcRosServerNodelet() {
+    if (server_) {
       server_->stop();
     }
   }
 
-  void onInit()
-  {
+  void onInit() {
     server_.reset(new WebrtcRosServer(getNodeHandle(), getPrivateNodeHandle()));
     server_->run();
   }
+
 private:
   boost::shared_ptr<WebrtcRosServer> server_;
 };
 
 
-}
+} // namespace webrtc_ros
 
 PLUGINLIB_EXPORT_CLASS(webrtc_ros::WebrtcRosServerNodelet, nodelet::Nodelet);
-

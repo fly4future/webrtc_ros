@@ -11,12 +11,11 @@
 
   <depend>cv_bridge</depend>
   <depend>rclcpp</depend>
-  <depend version_gte="59.0.0">webrtc-dev</depend>
+  <depend>webrtc</depend>
   <depend>image_transport</depend>
   <depend>std_msgs</depend>
   <depend>async_web_server_cpp</depend>
   <depend>jsoncpp</depend>
-  <depend>webrtc</depend>
   <depend>ament_index_cpp</depend>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

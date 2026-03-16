@@ -1,5 +1,4 @@
-#ifndef WEBRTC_ROS_WEBRTC_CLIENT_H_
-#define WEBRTC_ROS_WEBRTC_CLIENT_H_
+#pragma once
 
 #include <rclcpp/rclcpp.hpp>
 #include <image_transport/image_transport.hpp>
@@ -32,40 +31,36 @@ namespace webrtc_ros
 
 class WebrtcClient;
 typedef std::shared_ptr<WebrtcClient> WebrtcClientPtr;
-typedef std::weak_ptr<WebrtcClient> WebrtcClientWeakPtr;
+typedef std::weak_ptr<WebrtcClient>   WebrtcClientWeakPtr;
 
-class WebrtcClientObserverProxy : public webrtc::PeerConnectionObserver,
-  public webrtc::CreateSessionDescriptionObserver
-{
+class WebrtcClientObserverProxy : public webrtc::PeerConnectionObserver, public webrtc::CreateSessionDescriptionObserver {
 public:
   WebrtcClientObserverProxy(WebrtcClientWeakPtr client_weak);
 
-  void OnSuccess(webrtc::SessionDescriptionInterface*) override;
+  void OnSuccess(webrtc::SessionDescriptionInterface *) override;
   void OnFailure(webrtc::RTCError error) override;
   void OnAddStream(rtc::scoped_refptr<webrtc::MediaStreamInterface>) override;
   void OnRemoveStream(rtc::scoped_refptr<webrtc::MediaStreamInterface>) override;
   void OnDataChannel(rtc::scoped_refptr<webrtc::DataChannelInterface>) override;
   void OnRenegotiationNeeded() override;
-  void OnIceCandidate(const webrtc::IceCandidateInterface*) override;
+  void OnIceCandidate(const webrtc::IceCandidateInterface *) override;
   void OnSignalingChange(webrtc::PeerConnectionInterface::SignalingState) override;
   void OnIceConnectionChange(webrtc::PeerConnectionInterface::IceConnectionState) override;
   void OnIceGatheringChange(webrtc::PeerConnectionInterface::IceGatheringState) override;
-  void OnIceCandidatesRemoved(const std::vector<cricket::Candidate>& candidates) override;
+  void OnIceCandidatesRemoved(const std::vector<cricket::Candidate> &candidates) override;
 
 private:
   WebrtcClientWeakPtr client_weak_;
-
 };
 
 class MessageHandlerImpl;
-class WebrtcClient
-{
+class WebrtcClient {
 public:
-  WebrtcClient(rclcpp::Node::SharedPtr nh, const ImageTransportFactory& itf, const std::string& transport, SignalingChannel *signaling_channel);
+  WebrtcClient(rclcpp::Node::SharedPtr nh, const ImageTransportFactory &itf, const std::string &transport, SignalingChannel *signaling_channel);
   ~WebrtcClient();
-  MessageHandler* createMessageHandler();
+  MessageHandler *createMessageHandler();
 
-  void init(std::shared_ptr<WebrtcClient>& keep_alive_ptr);
+  void init(std::shared_ptr<WebrtcClient> &keep_alive_ptr);
   void invalidate();
   bool valid();
 
@@ -77,27 +72,27 @@ private:
 
   void ping_timer_callback();
 
-  void handle_message(MessageHandler::Type type, const std::string& message);
+  void handle_message(MessageHandler::Type type, const std::string &message);
 
-  void OnSessionDescriptionSuccess(webrtc::SessionDescriptionInterface*);
-  void OnSessionDescriptionFailure(const std::string&);
+  void OnSessionDescriptionSuccess(webrtc::SessionDescriptionInterface *);
+  void OnSessionDescriptionFailure(const std::string &);
   void OnAddRemoteStream(rtc::scoped_refptr<webrtc::MediaStreamInterface>);
   void OnRemoveRemoteStream(rtc::scoped_refptr<webrtc::MediaStreamInterface>);
-  void OnIceCandidate(const webrtc::IceCandidateInterface*);
+  void OnIceCandidate(const webrtc::IceCandidateInterface *);
 
-  rclcpp::Node::SharedPtr nh_;
+  rclcpp::Node::SharedPtr                          nh_;
   std::shared_ptr<image_transport::ImageTransport> it_;
-  ImageTransportFactory itf_;
-  std::string transport_;
-  std::unique_ptr<SignalingChannel> signaling_channel_;
+  ImageTransportFactory                            itf_;
+  std::string                                      transport_;
+  std::unique_ptr<SignalingChannel>                signaling_channel_;
 
-  rtc::Thread *signaling_thread_;
+  rtc::Thread                 *signaling_thread_;
   std::unique_ptr<rtc::Thread> worker_thread_;
 
-  rtc::scoped_refptr<webrtc::PeerConnectionFactoryInterface> peer_connection_factory_;
+  rtc::scoped_refptr<webrtc::PeerConnectionFactoryInterface>            peer_connection_factory_;
   std::map<std::string, std::vector<std::shared_ptr<RosVideoRenderer>>> video_renderers_;
-  rtc::scoped_refptr<WebrtcClientObserverProxy> webrtc_observer_proxy_;
-  rtc::scoped_refptr<webrtc::PeerConnectionInterface> peer_connection_;
+  rtc::scoped_refptr<WebrtcClientObserverProxy>                         webrtc_observer_proxy_;
+  rtc::scoped_refptr<webrtc::PeerConnectionInterface>                   peer_connection_;
 
   std::map<std::string, std::map<std::string, std::string>> expected_streams_;
 
@@ -107,6 +102,4 @@ private:
   friend MessageHandlerImpl;
 };
 
-}
-
-#endif
+} // namespace webrtc_ros
