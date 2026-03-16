@@ -26,7 +26,7 @@ void RosVideoCapturer::imageCallback(const sensor_msgs::msg::Image::ConstSharedP
   cv::Mat bgr;
   if (msg->encoding.find("F") != std::string::npos) {
     // scale floating point images
-    cv::Mat         float_image_bridge = cv_bridge::toCvShare(*msg, msg->encoding)->image;
+    cv::Mat         float_image_bridge = cv_bridge::toCvShare(msg, msg->encoding)->image;
     cv::Mat_<float> float_image        = float_image_bridge;
     double          max_val;
     cv::minMaxIdx(float_image, 0, &max_val);
@@ -38,7 +38,7 @@ void RosVideoCapturer::imageCallback(const sensor_msgs::msg::Image::ConstSharedP
     float_image.convertTo(orig, CV_8U);
     cv::cvtColor(orig, bgr, CV_GRAY2BGR);
   } else {
-    bgr = cv_bridge::toCvShare(*msg, "bgr8")->image;
+    bgr = cv_bridge::toCvShare(msg, "bgr8")->image;
   }
   int64_t  camera_time_us = msg->header.stamp.nanosec / 1000;
   int64_t  system_time_us = rclcpp::Clock().now().nanoseconds() / 1000;

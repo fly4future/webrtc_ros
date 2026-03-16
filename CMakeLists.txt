@@ -63,14 +63,16 @@ ament_target_dependencies(
   ament_index_cpp
 )
 
+rosidl_get_typesupport_target(cpp_typesupport_target
+  ${PROJECT_NAME} rosidl_typesupport_cpp)
+
 target_link_libraries(${PROJECT_NAME}_server_node
   ${webrtc_LIBRARIES}
   webrtc
   jsoncpp_lib
   ${X11_LIBRARIES}
+  ${cpp_typesupport_target}
 )
-rosidl_target_interfaces(${PROJECT_NAME}_server_node
-  ${PROJECT_NAME} "rosidl_typesupport_cpp")
 
 set_target_properties(${PROJECT_NAME}_server_node PROPERTIES
   CXX_STANDARD 20

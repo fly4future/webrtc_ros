@@ -29,7 +29,11 @@ bool SdpMessage::fromSessionDescription(const webrtc::SessionDescriptionInterfac
 
 
 webrtc::SessionDescriptionInterface *SdpMessage::createSessionDescription() {
-  return webrtc::CreateSessionDescription(type, sdp, 0);
+  std::optional<webrtc::SdpType> sdp_type_opt = webrtc::SdpTypeFromString(type);
+  if (!sdp_type_opt) {
+    return nullptr;
+  }
+  return webrtc::CreateSessionDescription(*sdp_type_opt, sdp, nullptr).release();
 }
 
 std::string SdpMessage::toJson() {

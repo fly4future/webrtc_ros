@@ -7,8 +7,9 @@ namespace webrtc_ros
 
 MessageHandler *WebrtcRosServer_handle_new_signaling_channel(void *_this, SignalingChannel *channel) {
   return ((WebrtcRosServer *)_this)
-      ->signaling_thread_->Invoke<MessageHandler *>(RTC_FROM_HERE,
-                                                    std::bind(&WebrtcRosServer::handle_new_signaling_channel, (WebrtcRosServer *)_this, channel));
+      ->signaling_thread_->BlockingCall([_this, channel]() {
+        return ((WebrtcRosServer *)_this)->handle_new_signaling_channel(channel);
+      });
 }
 
 WebrtcRosServer::WebrtcRosServer(rclcpp::Node::SharedPtr nh)

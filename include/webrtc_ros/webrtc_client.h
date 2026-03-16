@@ -46,7 +46,6 @@ class WebrtcClientObserverProxy : public webrtc::PeerConnectionObserver, public 
   void OnSignalingChange(webrtc::PeerConnectionInterface::SignalingState) override;
   void OnIceConnectionChange(webrtc::PeerConnectionInterface::IceConnectionState) override;
   void OnIceGatheringChange(webrtc::PeerConnectionInterface::IceGatheringState) override;
-  void OnIceCandidatesRemoved(const std::vector<cricket::Candidate> &candidates) override;
 
  private:
   WebrtcClientWeakPtr client_weak_;
