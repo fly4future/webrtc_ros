@@ -51,7 +51,9 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 
 ## | ----------------- Build libray ----------------- |
 
-add_library(WebrtcRos_Server SHARED
+# add_library(WebrtcRos_Server SHARED
+add_executable(WebrtcRos_Server
+  src/webrtc_ros_server_node.cpp
   src/webrtc_web_server.cpp
   src/configure_message.cpp
   src/ice_candidate_message.cpp
@@ -68,13 +70,13 @@ add_library(WebrtcRos_Server SHARED
 # Link against the generated message type support libraries
 rosidl_get_typesupport_target(cpp_typesupport_target
   ${PROJECT_NAME} rosidl_typesupport_cpp)
-target_link_libraries(WebrtcRos_Server PUBLIC "${cpp_typesupport_target}")
+# target_link_libraries(WebrtcRos_Server PUBLIC "${cpp_typesupport_target}")
 
-ament_target_dependencies(WebrtcRos_Server PUBLIC
+ament_target_dependencies(WebrtcRos_Server
   ${ROS_DEPS}
 )
 
-target_include_directories(WebrtcRos_Server PUBLIC
+target_include_directories(WebrtcRos_Server PRIVATE
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include/${PROJECT_NAME}>
   # External
@@ -85,27 +87,29 @@ target_include_directories(WebrtcRos_Server PUBLIC
   /usr/include/jsoncpp
 )
 
-target_link_libraries(WebrtcRos_Server PUBLIC
+target_link_libraries(WebrtcRos_Server
   ${webrtc_LIBRARIES}
   ${X11_LIBRARIES}
+  ${cpp_typesupport_target}
+  # ${EXTERNAL_DEPS}
 )
 
 ## | ----------------- Build executable ----------------- |
 
-add_executable(webrtc_ros_server_node
-  src/webrtc_ros_server_node.cpp
-)
+# add_executable(webrtc_ros_server_node
+#   src/webrtc_ros_server_node.cpp
+# )
 
-target_link_libraries(webrtc_ros_server_node PUBLIC
-  WebrtcRos_Server
-)
+# target_link_libraries(webrtc_ros_server_node PUBLIC
+#   WebrtcRos_Server
+# )
 
 ## --------------------------------------------------------------
 ## |                           install                          |
 ## --------------------------------------------------------------
 
 install(
-  TARGETS webrtc_ros_server_node
+  TARGETS WebrtcRos_Server
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
