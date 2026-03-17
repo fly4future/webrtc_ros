@@ -86,8 +86,9 @@ target_include_directories(WebrtcRos_Server PRIVATE
 )
 
 target_link_libraries(WebrtcRos_Server
-  webrtc::webrtc
   ${X11_LIBRARIES}
+  X11::X11
+  webrtc::webrtc
   jsoncpp_lib
   ${cpp_typesupport_target}
   # ${EXTERNAL_DEPS}
@@ -113,6 +114,7 @@ install(
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 install(
@@ -121,7 +123,7 @@ install(
 )
 
 install(
-  DIRECTORY launch config scripts
+  DIRECTORY launch scripts
   DESTINATION share/${PROJECT_NAME}
 )
 
