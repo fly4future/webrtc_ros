@@ -123,7 +123,7 @@ install(
 )
 
 install(
-  DIRECTORY launch scripts
+  DIRECTORY launch scripts web
   DESTINATION share/${PROJECT_NAME}
 )
 

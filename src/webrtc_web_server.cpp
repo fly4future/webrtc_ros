@@ -118,24 +118,22 @@ class WebrtcWebServerImpl : public WebrtcWebServer {
 
   bool handle_list_streams([[maybe_unused]] const async_web_server_cpp::HttpRequest &request, async_web_server_cpp::HttpConnectionPtr connection,
                            [[maybe_unused]] const char *begin, [[maybe_unused]] const char *end) {
-    std::string topicPrefix = "rt"; // get_topic_names_and_types prepends this; needs to be removed.
-    auto        node        = std::make_shared<rclcpp::Node>("webrtc_web_server");
-    auto        graph       = node->get_node_graph_interface();
-    auto        topics      = graph->get_topic_names_and_types(true);
+    auto node   = std::make_shared<rclcpp::Node>("webrtc_web_server");
+    auto graph  = node->get_node_graph_interface();
+    auto topics = graph->get_topic_names_and_types(true);
 
-    std::string image_message_type       = "sensor_msgs::msg::dds_::Image_";
-    std::string camera_info_message_type = "sensor_msgs::msg::dds_::CameraInfo_";
+    std::string image_message_type       = "sensor_msgs/msg/Image";
+    std::string camera_info_message_type = "sensor_msgs/msg/CameraInfo";
 
     std::vector<std::string> image_topics;
     std::vector<std::string> camera_info_topics;
 
     for (const auto &topic : topics) {
-      std::string realTopic = topic.first.substr(topicPrefix.length());
       for (const auto &messageType : topic.second) {
         if (messageType.compare(image_message_type) == 0) {
-          image_topics.push_back(realTopic);
+          image_topics.push_back(topic.first);
         } else if (messageType.compare(camera_info_message_type) == 0) {
-          camera_info_topics.push_back(realTopic);
+          camera_info_topics.push_back(topic.first);
         }
       }
     }
