@@ -3,27 +3,25 @@
 #include <rclcpp/rclcpp.hpp>
 #include <image_transport/image_transport.hpp>
 
-#include <webrtc_ros/ros_video_renderer.h>
-#include <api/media_stream_interface.h>
-#include <api/peer_connection_interface.h>
-#include <api/audio_options.h>
-#include <pc/peer_connection_factory.h>
-#include <api/create_peerconnection_factory.h>
-#include <api/audio_codecs/builtin_audio_encoder_factory.h>
-#include <api/audio_codecs/builtin_audio_decoder_factory.h>
+#include <webrtc/api/audio_codecs/builtin_audio_encoder_factory.h>
+#include <webrtc/api/audio_codecs/builtin_audio_decoder_factory.h>
+#include <webrtc/api/audio_options.h>
+#include <webrtc/api/candidate.h>
+#include <webrtc/api/create_peerconnection_factory.h>
+#include <webrtc/api/media_stream_interface.h>
+#include <webrtc/api/peer_connection_interface.h>
+#include <webrtc/api/video_codecs/builtin_video_decoder_factory.h>
+#include <webrtc/api/video_codecs/builtin_video_encoder_factory.h>
+#include <webrtc/media/base/adapted_video_track_source.h>
+#include <webrtc/media/engine/internal_decoder_factory.h>
+#include <webrtc/media/engine/internal_encoder_factory.h>
+#include <webrtc/pc/peer_connection_factory.h>
+#include <webrtc/rtc_base/thread.h>
 
-#include <media/engine/internal_decoder_factory.h>
-#include <media/engine/internal_encoder_factory.h>
-
-#include <media/base/adapted_video_track_source.h>
-
-#include <api/video_codecs/builtin_video_encoder_factory.h>
-#include <api/video_codecs/builtin_video_decoder_factory.h>
-#include <api/candidate.h>
 #include <webrtc_ros/configure_message.h>
-#include <webrtc_ros/webrtc_web_server.h>
 #include <webrtc_ros/image_transport_factory.h>
-#include <rtc_base/thread.h>
+#include <webrtc_ros/ros_video_renderer.h>
+#include <webrtc_ros/webrtc_web_server.h>
 
 namespace webrtc_ros
 {

@@ -1,10 +1,8 @@
 #include <rclcpp/rclcpp.hpp>
 
 #include <webrtc_ros/webrtc_web_server.h>
-#include <boost/shared_ptr.hpp>
-#include <boost/scoped_ptr.hpp>
-#include <boost/foreach.hpp>
-#include <boost/algorithm/string/predicate.hpp>
+#include <memory>
+#include <string>
 
 #include <sensor_msgs/msg/image.h>
 #include <sensor_msgs/msg/camera_info.h>
@@ -154,8 +152,8 @@ class WebrtcWebServerImpl : public WebrtcWebServer {
     std::stringstream json;
     json << "{\n\t\"camera_topics\": {";
     bool first_cam = true;
-    BOOST_FOREACH (const std::string &camera_info_topic, camera_info_topics) {
-      if (boost::algorithm::ends_with(camera_info_topic, "/camera_info")) {
+    for (const std::string &camera_info_topic : camera_info_topics) {
+      if (camera_info_topic.ends_with("/camera_info")) {
         std::string base_topic = camera_info_topic.substr(0, camera_info_topic.size() - strlen("camera_info"));
         if (!first_cam)
           json << ",";
@@ -164,7 +162,7 @@ class WebrtcWebServerImpl : public WebrtcWebServer {
         bool                               first           = true;
         std::vector<std::string>::iterator image_topic_itr = image_topics.begin();
         for (; image_topic_itr != image_topics.end();) {
-          if (boost::starts_with(*image_topic_itr, base_topic)) {
+          if (image_topic_itr->starts_with(base_topic)) {
             if (!first)
               json << ",\n";
             first = false;

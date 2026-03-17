@@ -1,7 +1,7 @@
 #pragma once
 
 #include <rclcpp/rclcpp.hpp>
-#include <boost/shared_ptr.hpp>
+#include <memory>
 #include <webrtc_ros/webrtc_client.h>
 #include <webrtc_ros/webrtc_web_server.h>
 #include <condition_variable>
@@ -32,7 +32,7 @@ class WebrtcRosServer {
   std::string             image_transport_;
   ImageTransportFactory   itf_;
 
-  boost::shared_ptr<webrtc_ros::WebrtcWebServer> server_;
+  std::shared_ptr<webrtc_ros::WebrtcWebServer> server_;
 };
 
 } // namespace webrtc_ros

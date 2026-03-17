@@ -1,7 +1,7 @@
 #include <webrtc_ros/ros_video_renderer.h>
 #include <rclcpp/rclcpp.hpp>
 #include <cv_bridge/cv_bridge.hpp>
-#include <3rdparty/libyuv/convert_from.h>
+#include <libyuv/convert_from.h>
 
 namespace webrtc_ros
 {

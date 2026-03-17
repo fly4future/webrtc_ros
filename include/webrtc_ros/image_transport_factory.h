@@ -4,7 +4,7 @@
 #include <image_transport/subscriber.hpp>
 #include <image_transport/transport_hints.hpp>
 #include <sensor_msgs/msg/image.hpp>
-#include <boost/function.hpp>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>

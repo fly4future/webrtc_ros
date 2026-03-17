@@ -4,13 +4,14 @@
 #include <webrtc_ros/webrtc_ros_message.h>
 #include <webrtc_ros/sdp_message.h>
 #include <webrtc_ros/ice_candidate_message.h>
-#include <api/video/video_source_interface.h>
-#include <api/audio_options.h>
-#include <api/video_codecs/builtin_video_encoder_factory.h>
-#include <api/video_codecs/builtin_video_decoder_factory.h>
-
 #include <webrtc_ros/ros_video_capturer.h>
+
 #include <webrtc_ros/srv/get_ice_servers.hpp>
+
+#include <webrtc/api/video/video_source_interface.h>
+#include <webrtc/api/audio_options.h>
+#include <webrtc/api/video_codecs/builtin_video_encoder_factory.h>
+#include <webrtc/api/video_codecs/builtin_video_decoder_factory.h>
 
 using namespace std::chrono_literals;
 

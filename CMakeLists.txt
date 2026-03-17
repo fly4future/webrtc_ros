@@ -6,11 +6,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Enable compiler warnings
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic -fno-omit-frame-pointer)
+  add_compile_options(-Wall -Wextra -fno-omit-frame-pointer)
 endif()
-
-# Webrtc definitions
-add_definitions(-DWEBRTC_POSIX -DWEBRTC_LINUX)
 
 # Ros build tools
 find_package(ament_cmake REQUIRED)
@@ -41,6 +38,10 @@ set(EXTERNAL_DEPS
   X11
   jsoncpp
 )
+
+foreach(DEP IN LISTS EXTERNAL_DEPS)
+  find_package(${DEP} REQUIRED)
+endforeach()
 
 ## | ----------------- Message and service generation ----------------- |
 
@@ -81,15 +82,13 @@ target_include_directories(WebrtcRos_Server PRIVATE
   $<INSTALL_INTERFACE:include/${PROJECT_NAME}>
   # External
   ${OpenCV_INCLUDE_DIRS}
-  ${webrtc_INCLUDE_DIRS}
-  /usr/include/webrtc
-  /usr/include/webrtc/3rdparty
   /usr/include/jsoncpp
 )
 
 target_link_libraries(WebrtcRos_Server
-  ${webrtc_LIBRARIES}
+  webrtc::webrtc
   ${X11_LIBRARIES}
+  jsoncpp_lib
   ${cpp_typesupport_target}
   # ${EXTERNAL_DEPS}
 )

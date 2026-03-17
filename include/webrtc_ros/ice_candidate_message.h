@@ -1,8 +1,8 @@
 #pragma once
 
 #include <webrtc_ros/webrtc_ros_message.h>
-#include <json/json.h>
-#include <api/jsep.h>
+#include <jsoncpp/json/json.h>
+#include <webrtc/api/jsep.h>
 #include <string>
 
 namespace webrtc_ros

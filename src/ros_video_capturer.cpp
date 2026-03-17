@@ -1,7 +1,7 @@
 #include "webrtc_ros/ros_video_capturer.h"
 #include <rclcpp/rclcpp.hpp>
 #include <cv_bridge/cv_bridge.hpp>
-#include <boost/enable_shared_from_this.hpp>
+#include <memory>
 
 namespace webrtc_ros
 {

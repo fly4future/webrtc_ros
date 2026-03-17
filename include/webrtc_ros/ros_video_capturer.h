@@ -2,14 +2,15 @@
 
 #include <webrtc/modules/video_capture/video_capture.h>
 #include <webrtc/modules/video_capture/video_capture_factory.h>
-#include <media/base/adapted_video_track_source.h>
-#include <api/video/video_source_interface.h>
-#include <api/video/i420_buffer.h>
-#include <rtc_base/event.h>
-#include <rtc_base/thread.h>
+#include <webrtc/media/base/adapted_video_track_source.h>
+#include <webrtc/api/video/video_source_interface.h>
+#include <webrtc/api/video/i420_buffer.h>
+#include <webrtc/rtc_base/event.h>
+#include <webrtc/rtc_base/thread.h>
+
 #include <webrtc_ros/image_transport_factory.h>
 #include <mutex>
-#include <boost/enable_shared_from_this.hpp>
+#include <memory>
 
 namespace webrtc_ros
 {
@@ -37,13 +38,13 @@ class RosVideoCapturer : public webrtc::AdaptedVideoTrackSource {
   RosVideoCapturer(const RosVideoCapturer &)            = delete;
   RosVideoCapturer &operator=(const RosVideoCapturer &) = delete;
 
-  boost::shared_ptr<RosVideoCapturerImpl> impl_;
+  std::shared_ptr<RosVideoCapturerImpl> impl_;
 };
 
 // The Impl class represents the actual backend that is receiving ROS events
 // It is needed because the VideoCapturer can be destroyed while there is still
 // an image callback queued/running, leading to undefined behavior
-class RosVideoCapturerImpl : public boost::enable_shared_from_this<RosVideoCapturerImpl> {
+class RosVideoCapturerImpl : public std::enable_shared_from_this<RosVideoCapturerImpl> {
  public:
   RosVideoCapturerImpl(const ImageTransportFactory &it, const std::string &topic, const std::string &transport);
 
