@@ -60,7 +60,7 @@ void WebRTCStreamer::setupSignaling_() {
       [this](const std::string &error) { RCLCPP_ERROR(get_logger(), "Signaling server error: %s", error.c_str()); });
 }
 
-void WebRTCStreamer::sendSignaling_(const json &msg) {
+void WebRTCStreamer::sendSignaling(const json &msg) {
   std::string msg_str = msg.dump();
   signaling_ws_client_.send(msg_str);
   RCLCPP_DEBUG(get_logger(), "Sent signaling message: %s", msg_str.c_str());
@@ -84,7 +84,7 @@ void WebRTCStreamer::handleSignalingMessage_(const std::string &payload) {
         err["type"]    = "error";
         err["message"] = "Missing 'streams' field in request";
 
-        sendSignaling_(err);
+        sendSignaling(err);
         return;
       }
 
@@ -95,25 +95,36 @@ void WebRTCStreamer::handleSignalingMessage_(const std::string &payload) {
       createPeerSession_(peer_id, requested);
     } else if (type == "answer") {
       std::unique_lock lock(mtx_sessions_);
-
-      auto it = sessions_.find(peer_id);
-      if (it == sessions_.end()) {
+      if (sessions_.find(peer_id) == sessions_.end()) {
         RCLCPP_WARN(get_logger(), "Answer from unknown peer: %s", peer_id.c_str());
         return;
       }
 
-      rtc::Description answer(msg["sdp"].get<std::string>(), type);
-      it->second->pc->setRemoteDescription(answer);
-      RCLCPP_INFO(get_logger(), "Answer received from %s", peer_id.c_str());
+      GstElement *webrtc  = sessions_[peer_id]->webrtc;
+      std::string sdp_str = msg["sdp"].get<std::string>();
+
+      // Parse the remote SDP and apply it to webrtcbin
+      GstSDPMessage *sdp;
+      gst_sdp_message_new(&sdp);
+      gst_sdp_message_parse_buffer((guint8 *)sdp_str.c_str(), sdp_str.size(), sdp);
+      GstWebRTCSessionDescription *answer = gst_webrtc_session_description_new(GST_WEBRTC_SDP_TYPE_ANSWER, sdp);
+
+      GstPromise *promise = gst_promise_new();
+      g_signal_emit_by_name(webrtc, "set-remote-description", answer, promise);
+      gst_promise_unref(promise);
+      gst_webrtc_session_description_free(answer);
+
+      RCLCPP_INFO(get_logger(), "Answer received and applied for %s", peer_id.c_str());
     } else if (type == "candidate") {
       std::unique_lock lock(mtx_sessions_);
-
-      auto it = sessions_.find(peer_id);
-      if (it == sessions_.end())
+      if (sessions_.find(peer_id) == sessions_.end())
         return;
 
-      rtc::Candidate candidate(msg["candidate"].get<std::string>(), msg["sdpMid"].get<std::string>());
-      it->second->pc->addRemoteCandidate(candidate);
+      GstElement *webrtc        = sessions_[peer_id]->webrtc;
+      std::string candidate_str = msg["candidate"].get<std::string>();
+      int         sdp_mid_index = std::stoi(msg["sdpMLineIndex"].get<std::string>()); // GStreamer needs the index
+
+      g_signal_emit_by_name(webrtc, "add-ice-candidate", sdp_mid_index, candidate_str.c_str());
     } else if (type == "offer") {
       // Stream providers are the ones that create offers, so we don't expect to receive this type. Just log it.
       RCLCPP_WARN(get_logger(), "Received unexpected 'offer' message from %s", peer_id.c_str());
@@ -136,47 +147,8 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
 
   auto session     = std::make_shared<PeerSession>();
   session->peer_id = peer_id;
-  session->ssrc    = static_cast<rtc::SSRC>(std::hash<std::string>{}(peer_id) & 0xFFFFFFFF);
 
-  rtc::Configuration config;
-  // config.iceServers.emplace_back("stun:stun.l.google.com:19302");
-  session->pc = std::make_shared<rtc::PeerConnection>(config);
-
-  // PeerConnection callbacks
-  session->pc->onStateChange([this, peer_id](rtc::PeerConnection::State state) {
-    RCLCPP_INFO(get_logger(), "[%s] PeerConnection state: %i", peer_id.c_str(), static_cast<int>(state));
-
-    if (state == rtc::PeerConnection::State::Disconnected || //
-        state == rtc::PeerConnection::State::Failed ||       //
-        state == rtc::PeerConnection::State::Closed) {
-      RCLCPP_INFO(get_logger(), "[%s] Peer disconnected, removing session", peer_id.c_str());
-      std::unique_lock lock(mtx_sessions_);
-      sessions_.erase(peer_id);
-    }
-  });
-
-  session->pc->onGatheringStateChange([this, peer_id](rtc::PeerConnection::GatheringState state) {
-    if (state == rtc::PeerConnection::GatheringState::Complete) {
-      std::shared_ptr<PeerSession> s;
-      {
-        std::unique_lock lock(mtx_sessions_);
-
-        auto it = sessions_.find(peer_id);
-        if (it == sessions_.end())
-          return;
-        s = it->second;
-      }
-      auto desc = s->pc->localDescription();
-
-      json msg;
-      msg["id"]   = peer_id;
-      msg["type"] = desc->typeString();
-      msg["sdp"]  = std::string(desc.value());
-
-      sendSignaling_(msg);
-      RCLCPP_INFO(get_logger(), "[%s] Offer sent", peer_id.c_str());
-    }
-  });
+  std::string pipeline_desc = "webrtcbin name=webrtc bundle-policy=max-bundle ";
 
   // Create tracks for requested streams
   for (const auto &stream : requested_streams) {
@@ -187,110 +159,103 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
     }
 
     RCLCPP_INFO(get_logger(), "[%s] Adding track for stream '%s'", peer_id.c_str(), stream.c_str());
+    std::string src_name = "src_" + stream;
 
-    rtc::Description::Video mediaDescription("video", rtc::Description::Direction::SendOnly);
-    mediaDescription.addH264Codec(96);
+    pipeline_desc += "appsrc name=" + src_name +
+                     " format=time is-live=true do-timestamp=true ! "
+                     "videoconvert ! "
+                     "x264enc tune=zerolatency bitrate=1000 speed-preset=ultrafast key-int-max=30 ! "
+                     "video/x-h264,profile=constrained-baseline ! "
+                     "rtph264pay config-interval=-1 pt=96 ! "
+                     "application/x-rtp,media=video,encoding-name=H264,payload=96,clock-rate=90000 ! webrtc. ";
+  }
 
-    uint32_t track_ssrc = static_cast<uint32_t>(session->ssrc + std::hash<std::string>{}(stream));
-    mediaDescription.addSSRC(track_ssrc, peer_id, "stream-" + peer_id + "-" + stream, stream);
+  GError *err       = nullptr;
+  session->pipeline = gst_parse_launch(pipeline_desc.c_str(), &err);
+  if (err) {
+    RCLCPP_ERROR(get_logger(), "Failed to create GStreamer pipeline for session '%s': %s", peer_id.c_str(),
+                 err->message);
+    g_error_free(err);
+    return;
+  }
 
-    TrackInfo &track_info = session->tracks[stream];
-    track_info.track      = session->pc->addTrack(mediaDescription);
+  session->webrtc = gst_bin_get_by_name(GST_BIN(session->pipeline), "webrtc");
+
+  // Pass session context to callbacks using a struct or directly if you maintain a map
+  // To avoid complex memory management in this example, we pass the WebRTCStreamer instance
+  // and use webrtcbin's element name or map lookup to find the peer_id in the callback.
+  g_object_set_data(G_OBJECT(session->webrtc), "peer_id", (gpointer)strdup(peer_id.c_str()));
+  g_object_set_data(G_OBJECT(session->webrtc), "streamer", this);
+
+  // 2. Connect WebRTC signaling callbacks
+  g_signal_connect(session->webrtc, "on-negotiation-needed", G_CALLBACK(onNegotiationNeeded_), this);
+  g_signal_connect(session->webrtc, "on-ice-candidate", G_CALLBACK(onICECandidate_), this);
+
+  // 3. Connect AppSrcs to ROS Subscriptions
+  for (const auto &stream : requested_streams) {
+    std::string src_name = "src_" + stream;
+
+    TrackInfo track_info;
     track_info.topic_name = stream;
-    track_info.is_ready   = false;
-
-    // Setup GStreamer pipeline
-    // 1. appsrc to push raw frames from ROS
-    // 2. videoconvert to ensure format compatibility
-    // 3. x264enc to encode to H264 (WebRTC compatible)
-    // 4. rtph264pay to packetize for RTP streaming
-    // 5. appsink to pull RTP packets and send via WebRTC track
-    std::string desc = "appsrc name=src format=time is-live=true block=false do-timestamp=true ! "
-                       "videoconvert ! "
-                       "x264enc tune=zerolatency bitrate=1000 speed-preset=ultrafast ! "
-                       "video/x-h264,profile=constrained-baseline ! "
-                       "rtph264pay config-interval=1 pt=96 ssrc=" +
-                       std::to_string(track_ssrc) +
-                       " ! "
-                       "appsink name=sink sync=false emit-signals=true";
-
-    GError *err         = nullptr;
-    track_info.pipeline = gst_parse_launch(desc.c_str(), &err);
-    if (err) {
-      RCLCPP_ERROR(get_logger(), "Failed to create GStreamer pipeline for track '%s': %s", stream.c_str(),
-                   err->message);
-      g_error_free(err);
-      continue;
-    }
-
-    track_info.appsrc  = gst_bin_get_by_name(GST_BIN(track_info.pipeline), "src");
-    track_info.appsink = gst_bin_get_by_name(GST_BIN(track_info.pipeline), "sink");
-
-    g_signal_connect(track_info.appsink, "new-sample", G_CALLBACK(onNewRTPSample_), &track_info);
-    gst_element_set_state(track_info.pipeline, GST_STATE_PLAYING);
+    track_info.appsrc     = gst_bin_get_by_name(GST_BIN(session->pipeline), src_name.c_str());
 
     track_info.sub = this->create_subscription<sensor_msgs::msg::Image>(
         stream, rclcpp::SensorDataQoS(), [this, peer_id, stream](const sensor_msgs::msg::Image::SharedPtr msg) {
           this->imageCallback(msg, peer_id, stream);
         });
 
-    // Track callbacks
-    track_info.track->onOpen([this, peer_id, stream]() {
-      std::unique_lock lock(mtx_sessions_);
-
-      auto it = sessions_.find(peer_id);
-      if (it != sessions_.end()) {
-        it->second->tracks[stream].is_ready = true;
-        RCLCPP_INFO(get_logger(), "[%s] Track for stream '%s' is open", peer_id.c_str(), stream.c_str());
-      }
-    });
-
-    track_info.track->onClosed([this, peer_id, stream]() {
-      RCLCPP_WARN(get_logger(), "[%s] Track for stream '%s' closed", peer_id.c_str(), stream.c_str());
-      std::unique_lock lock(mtx_sessions_);
-
-      auto it = sessions_.find(peer_id);
-      if (it == sessions_.end())
-        return;
-
-      // Clean up pipeline when track closes
-      if (it->second->tracks.count(stream)) {
-        gst_element_set_state(it->second->tracks[stream].pipeline, GST_STATE_NULL);
-        gst_object_unref(it->second->tracks[stream].pipeline);
-      }
-      it->second->tracks.erase(stream);
-      if (it->second->tracks.empty()) {
-        RCLCPP_INFO(get_logger(), "[%s] No more tracks, closing session", peer_id.c_str());
-        sessions_.erase(peer_id);
-      }
-    });
+    session->tracks[stream] = track_info;
   }
 
-  // Append session and send offer to trigger onGatheringStateChange
-  RCLCPP_INFO(get_logger(), "[%s] Peer session created, generating offer...", peer_id.c_str());
   sessions_[peer_id] = session;
-  session->pc->setLocalDescription();
-};
+  gst_element_set_state(session->pipeline, GST_STATE_PLAYING);
+}
 
-GstFlowReturn WebRTCStreamer::onNewRTPSample_(GstElement *sink, TrackInfo *track_info) {
-  GstSample *sample = gst_app_sink_pull_sample(GST_APP_SINK(sink));
-  if (!sample)
-    return GST_FLOW_ERROR;
+void WebRTCStreamer::onNegotiationNeeded_(GstElement *webrtc, [[maybe_unused]] gpointer user_data) {
+  GstPromise *promise = gst_promise_new_with_change_func(onOfferCreated_, webrtc, nullptr);
+  g_signal_emit_by_name(webrtc, "create-offer", nullptr, promise);
+}
 
-  GstBuffer *buffer = gst_sample_get_buffer(sample);
-  GstMapInfo map;
-  if (gst_buffer_map(buffer, &map, GST_MAP_READ)) {
-    try {
-      track_info->track->send(reinterpret_cast<const std::byte *>(map.data), map.size);
-    }
-    catch (const std::exception &e) {
-      RCLCPP_WARN(rclcpp::get_logger("WebRTCStreamer"), "Failed to send RTP packet for track '%s': %s",
-                  track_info->topic_name.c_str(), e.what());
-    }
-    gst_buffer_unmap(buffer, &map);
-  }
-  gst_sample_unref(sample);
-  return GST_FLOW_OK;
+void WebRTCStreamer::onOfferCreated_(GstPromise *promise, gpointer user_data) {
+  GstElement *webrtc   = GST_ELEMENT(user_data);
+  auto        streamer = static_cast<WebRTCStreamer *>(g_object_get_data(G_OBJECT(webrtc), "streamer"));
+  char       *peer_id  = (char *)g_object_get_data(G_OBJECT(webrtc), "peer_id");
+
+  const GstStructure          *reply = gst_promise_get_reply(promise);
+  GstWebRTCSessionDescription *offer = nullptr;
+  gst_structure_get(reply, "offer", GST_TYPE_WEBRTC_SESSION_DESCRIPTION, &offer, nullptr);
+  gst_promise_unref(promise);
+
+  // Set local description
+  GstPromise *local_desc_promise = gst_promise_new();
+  g_signal_emit_by_name(webrtc, "set-local-description", offer, local_desc_promise);
+  gst_promise_unref(local_desc_promise);
+
+  // Send offer to signaling server
+  gchar *sdp_text = gst_sdp_message_as_text(offer->sdp);
+  json   msg;
+  msg["id"]   = std::string(peer_id);
+  msg["type"] = "offer";
+  msg["sdp"]  = std::string(sdp_text);
+
+  streamer->sendSignaling(msg);
+
+  g_free(sdp_text);
+  gst_webrtc_session_description_free(offer);
+}
+
+void WebRTCStreamer::onICECandidate_(GstElement *webrtc, guint mline_index, gchar *candidate, gpointer user_data) {
+  auto  streamer = static_cast<WebRTCStreamer *>(user_data);
+  char *peer_id  = (char *)g_object_get_data(G_OBJECT(webrtc), "peer_id");
+
+  json msg;
+  msg["id"]            = std::string(peer_id);
+  msg["type"]          = "candidate";
+  msg["candidate"]     = std::string(candidate);
+  msg["sdpMid"]        = "";
+  msg["sdpMLineIndex"] = std::to_string(mline_index);
+
+  streamer->sendSignaling(msg);
 }
 
 void WebRTCStreamer::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg, const std::string &peer_id,
@@ -300,9 +265,8 @@ void WebRTCStreamer::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg,
     std::shared_lock lock(mtx_sessions_);
     const auto       it = sessions_.find(peer_id);
 
-    if (it == sessions_.end() ||             //
-        !it->second->tracks.count(stream) || //
-        !it->second->tracks.at(stream).is_ready)
+    if (it == sessions_.end() || //
+        !it->second->tracks.count(stream))
       return;
 
     target_appsrc = it->second->tracks.at(stream).appsrc;

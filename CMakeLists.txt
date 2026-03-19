@@ -43,6 +43,8 @@ pkg_check_modules(GST REQUIRED
   gstreamer-1.0
   gstreamer-app-1.0
   gstreamer-video-1.0
+  gstreamer-webrtc-1.0
+  gstreamer-sdp-1.0
 )
 
 ## | ----------------- Build executable ----------------- |

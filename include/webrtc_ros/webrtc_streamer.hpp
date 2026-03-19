@@ -9,29 +9,34 @@
 #include <gst/app/gstappsrc.h>
 #include <gst/app/gstappsink.h>
 
+#include <gst/sdp/gstsdpmessage.h>
+#include <gst/webrtc/rtcsessiondescription.h>
+
 using json = nlohmann::json;
 
 struct TrackInfo
 {
-  std::shared_ptr<rtc::Track> track;
-  bool                        is_ready = false;
+  std::string topic_name;
+  GstElement *appsrc = nullptr;
 
-  std::string                                              topic_name;
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr sub;
-
-  GstElement *pipeline = nullptr;
-  GstElement *appsrc   = nullptr;
-  GstElement *appsink  = nullptr;
 };
 
 struct PeerSession
 {
-  std::string                          peer_id;
-  rtc::SSRC                            ssrc;
-  std::shared_ptr<rtc::PeerConnection> pc;
+  std::string peer_id;
+  GstElement *pipeline;
+  GstElement *webrtc;
 
   // Streams
   std::map<std::string, TrackInfo> tracks;
+
+  ~PeerSession() {
+    if (pipeline) {
+      gst_element_set_state(pipeline, GST_STATE_NULL);
+      gst_object_unref(pipeline);
+    }
+  }
 };
 
 class WebRTCStreamer : public rclcpp::Node {
@@ -45,9 +50,12 @@ class WebRTCStreamer : public rclcpp::Node {
 
   void connectSignaling_();
   void setupSignaling_();
-  void sendSignaling_(const json &msg);
   void handleSignalingMessage_(const std::string &msg);
 
+ public:
+  void sendSignaling(const json &msg);
+
+ private:
   // WebRTC session management
   std::map<std::string, std::shared_ptr<PeerSession>> sessions_;
   std::shared_mutex                                   mtx_sessions_;
@@ -58,7 +66,9 @@ class WebRTCStreamer : public rclcpp::Node {
   void imageCallback(const sensor_msgs::msg::Image::SharedPtr msg, const std::string &peer_id,
                      const std::string &stream);
 
-  static GstFlowReturn onNewRTPSample_(GstElement *sink, TrackInfo *track_info);
+  static void onNegotiationNeeded_(GstElement *webrtc, gpointer user_data);
+  static void onOfferCreated_(GstPromise *promise, gpointer user_data);
+  static void onICECandidate_(GstElement *webrtc, guint mline_index, gchar *candidate, gpointer user_data);
 
   // Utility
   bool existsImageTopic_(const std::string &topic_name);
