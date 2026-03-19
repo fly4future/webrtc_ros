@@ -318,9 +318,6 @@ void WebRTCStreamer::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg,
   memcpy(map.data, msg->data.data(), msg->data.size());
   gst_buffer_unmap(buf, &map);
 
-  GST_BUFFER_PTS(buf)      = rclcpp::Time(msg->header.stamp).nanoseconds();
-  GST_BUFFER_DURATION(buf) = GST_SECOND / 30;
-
   // Set caps based on image encoding
   std::map<std::string, std::string> encoding_map = {
     { "rgb8", "RGB" },
