@@ -13,10 +13,24 @@ WebRTCStreamer::WebRTCStreamer()
   // Setup WebSocket signaling
   this->declare_parameter("signaling_url", "ws://localhost:8000/uav999");
   setupSignaling_();
+  connectSignaling_();
+}
+
+void WebRTCStreamer::connectSignaling_() {
+  std::string url = this->get_parameter("signaling_url").as_string();
+  RCLCPP_INFO(get_logger(), "Connecting to signaling server at %s", url.c_str());
+  if (signaling_ws_client_.isOpen()) {
+    signaling_ws_client_.close();
+  }
+  signaling_ws_client_.open(url);
 }
 
 void WebRTCStreamer::setupSignaling_() {
-  signaling_ws_client_.onOpen([this]() { RCLCPP_INFO(get_logger(), "Connected to signaling server"); });
+  signaling_ws_client_.onOpen([this]() {
+    RCLCPP_INFO(get_logger(), "Connected to signaling server");
+    if (reconnect_timer_)
+      reconnect_timer_->cancel();
+  });
 
   signaling_ws_client_.onMessage([this](std::variant<rtc::binary, rtc::string> message) {
     if (std::holds_alternative<rtc::string>(message)) {
@@ -28,10 +42,22 @@ void WebRTCStreamer::setupSignaling_() {
     }
   });
 
-  signaling_ws_client_.onClosed([this]() { RCLCPP_WARN(get_logger(), "Disconnected from signaling server"); });
+  signaling_ws_client_.onClosed([this]() {
+    RCLCPP_WARN(get_logger(), "Disconnected from signaling server. Trying to reconnect...");
 
-  // Start connection
-  signaling_ws_client_.open(this->get_parameter("signaling_url").as_string());
+    if (reconnect_timer_) {
+      reconnect_timer_->reset();
+      return;
+    }
+
+    reconnect_timer_ = this->create_wall_timer(std::chrono::seconds(3), [this]() {
+      if (!signaling_ws_client_.isOpen())
+        connectSignaling_();
+    });
+  });
+
+  signaling_ws_client_.onError(
+      [this](const std::string &error) { RCLCPP_ERROR(get_logger(), "Signaling server error: %s", error.c_str()); });
 }
 
 void WebRTCStreamer::sendSignaling_(const json &msg) {

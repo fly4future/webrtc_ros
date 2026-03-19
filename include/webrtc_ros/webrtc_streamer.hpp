@@ -40,8 +40,10 @@ class WebRTCStreamer : public rclcpp::Node {
 
  private:
   // Signaling server (WebSocket)
-  rtc::WebSocket signaling_ws_client_;
+  rtc::WebSocket               signaling_ws_client_;
+  rclcpp::TimerBase::SharedPtr reconnect_timer_;
 
+  void connectSignaling_();
   void setupSignaling_();
   void sendSignaling_(const json &msg);
   void handleSignalingMessage_(const std::string &msg);
