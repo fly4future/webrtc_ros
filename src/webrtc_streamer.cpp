@@ -164,19 +164,28 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
 
     rtc::Description::Video mediaDescription("video", rtc::Description::Direction::SendOnly);
     mediaDescription.addH264Codec(96);
-    mediaDescription.addSSRC(session->ssrc + std::hash<std::string>{}(stream), peer_id + "-" + stream);
+
+    uint32_t track_ssrc = static_cast<uint32_t>(session->ssrc + std::hash<std::string>{}(stream));
+    mediaDescription.addSSRC(track_ssrc, peer_id, "stream-" + peer_id + "-" + stream, stream);
 
     TrackInfo &track_info = session->tracks[stream];
     track_info.track      = session->pc->addTrack(mediaDescription);
     track_info.topic_name = stream;
     track_info.is_ready   = false;
 
-    // Setup GStreamer pipeline for this track
-    std::string desc = "appsrc name=src format=time is-live=true block=false do-timestamp=true "
-                       "caps=video/x-raw,format=BGR,width=640,height=480,framerate=30/1 ! "
+    // Setup GStreamer pipeline
+    // 1. appsrc to push raw frames from ROS
+    // 2. videoconvert to ensure format compatibility
+    // 3. x264enc to encode to H264 (WebRTC compatible)
+    // 4. rtph264pay to packetize for RTP streaming
+    // 5. appsink to pull RTP packets and send via WebRTC track
+    std::string desc = "appsrc name=src format=time is-live=true block=false do-timestamp=true ! "
                        "videoconvert ! "
                        "x264enc tune=zerolatency bitrate=1000 speed-preset=ultrafast ! "
-                       "rtph264pay config-interval=1 pt=96 ! "
+                       "video/x-h264,profile=constrained-baseline ! "
+                       "rtph264pay config-interval=1 pt=96 ssrc=" +
+                       std::to_string(track_ssrc) +
+                       " ! "
                        "appsink name=sink sync=false emit-signals=true";
 
     GError *err         = nullptr;
@@ -276,6 +285,7 @@ void WebRTCStreamer::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg,
   if (!target_appsrc)
     return;
 
+  // Convert ROS Image message to raw buffer
   GstBuffer *buf = gst_buffer_new_allocate(nullptr, msg->data.size(), nullptr);
   GstMapInfo map;
   gst_buffer_map(buf, &map, GST_MAP_WRITE);
@@ -285,6 +295,26 @@ void WebRTCStreamer::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg,
   GST_BUFFER_PTS(buf)      = rclcpp::Time(msg->header.stamp).nanoseconds();
   GST_BUFFER_DURATION(buf) = GST_SECOND / 30;
 
+  // Set caps based on image encoding
+  std::map<std::string, std::string> encoding_map = {
+    { "rgb8", "RGB" },
+    { "bgr8", "BGR" },
+    { "mono8", "GRAY8" },
+    { "yuv422_yuy2", "YUY2" },
+  };
+  if (encoding_map.find(msg->encoding) == encoding_map.end()) {
+    RCLCPP_ERROR(get_logger(), "Unsupported image encoding: %s", msg->encoding.c_str());
+    gst_buffer_unref(buf);
+    return;
+  }
+
+  GstCaps *caps = gst_caps_new_simple("video/x-raw", "format", G_TYPE_STRING, encoding_map.at(msg->encoding).c_str(),
+                                      "width", G_TYPE_INT, msg->width, "height", G_TYPE_INT, msg->height, "framerate",
+                                      GST_TYPE_FRACTION, 30, 1, nullptr);
+  g_object_set(target_appsrc, "caps", caps, nullptr);
+  gst_caps_unref(caps);
+
+  // Push buffer to appsrc
   GstFlowReturn ret;
   g_signal_emit_by_name(target_appsrc, "push-buffer", buf, &ret);
   gst_buffer_unref(buf);
