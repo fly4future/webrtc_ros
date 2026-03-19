@@ -9,16 +9,17 @@
 
   <license>BSD</license>
 
-  <depend>cv_bridge</depend>
-  <depend>rclcpp</depend>
-  <!-- <depend>webrtc</depend> -->
-  <depend>image_transport</depend>
-  <depend>std_msgs</depend>
-  <depend>async_web_server_cpp</depend>
-  <depend>libjsoncpp-dev</depend>
-  <depend>ament_index_cpp</depend>
-
   <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>image_transport</depend>
+
+  <!-- sudo apt-get update && sudo apt-get install -y gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-tools -->
+  <depend>libgstreamer1.0-dev</depend>
+  <depend>libgstreamer-plugins-base1.0-dev</depend>
+
+  <depend>nlohmann-json-dev</depend>
 
   <buildtool_depend>rosidl_default_generators</buildtool_depend>
   <exec_depend>rosidl_default_runtime</exec_depend>

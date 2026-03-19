@@ -3,7 +3,7 @@ Language: Cpp
 Standard: c++20
 
 AccessModifierOffset: -1
-ColumnLimit: 160
+ColumnLimit: 120
 MaxEmptyLinesToKeep: 1
 
 AlignAfterOpenBracket: Align
@@ -26,6 +26,7 @@ KeepEmptyLinesAtTheStartOfBlocks: true
 NamespaceIndentation: None
 SortIncludes: false
 SpaceBeforeParens: ControlStatements
+Cpp11BracedListStyle: false
 
 BraceWrapping:
   AfterClass: false
