@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>WebRTC ROS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      text-wrap: balance;
+      overflow-wrap: break-word;
+    }
+
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 0;
+      padding: 2em;
+    }
+
+    h1 {
+      font-size: 1.6em;
+    }
+
+    h2 {
+      font-size: 1em;
+      font-weight: normal;
+      color: light-dark(#464646, #c0c0c0);
+    }
+
+    ul {
+      padding: 0.5em 1.5em;
+    }
+
+    #status {
+      font-size: 0.8em;
+      color: #888;
+      margin-bottom: 1em;
+    }
+
+    a {
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+  </style>
+
+</head>
+
+<body>
+  <h1>WebRTC ROS</h1>
+
+  <h3 id="status">Streams</h3>
+  <a href="chrome://webrtc-internals/" target="_blank">Open webrtc-internals</a>
+
+  <div id="videos" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:16px"></div>
+
+  <script>
+    const MY_ID = "browser-" + Math.random().toString(36).substr(2, 8);
+    const REMOTE_ID = "uav124";
+    const STREAMS = []; // ["/oak/stereo/image_raw"];
+
+    let ws, pc;
+
+    document.getElementById("status").textContent = "Connecting to signaling server...";
+
+    ws = new WebSocket(`ws://localhost:8000/${MY_ID}`);
+    pc = new RTCPeerConnection({ bundlePolicy: "max-bundle" });
+
+    // Create <video> elements for each incoming track and handle autoplay
+    pc.ontrack = (evt) => {
+      const label = evt.track.label || "stream";
+      const wrapper = document.createElement("div");
+      wrapper.style = "text-align:center";
+      wrapper.innerHTML = `<p><b>${label}</b></p>`;
+      const video = document.createElement("video");
+      video.autoplay = video.muted = video.playsInline = true;
+      video.style = "width:600px; height:auto; background:#000";
+
+      video.srcObject = new MediaStream([evt.track]);
+
+      wrapper.appendChild(video);
+      document.getElementById("videos").appendChild(wrapper);
+      document.getElementById("status").textContent = `✅ ${MY_ID}`;
+    };
+
+    pc.onicecandidate = (evt) => {
+      if (evt.candidate)
+        ws.send(JSON.stringify({
+          id: REMOTE_ID, type: "candidate",
+          candidate: evt.candidate.candidate,
+          sdpMid: evt.candidate.sdpMid,
+          sdpMLineIndex: evt.candidate.sdpMLineIndex.toString()
+        }));
+    };
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({
+        id: REMOTE_ID,
+        type: "request",
+        streams: STREAMS,
+      }));
+    };
+
+    ws.onmessage = async (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.type === "error") {
+        document.getElementById("status").textContent = "Error: " + msg.reason;
+        return;
+      }
+      if (msg.type === "offer") {
+        await pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        ws.send(JSON.stringify({ id: REMOTE_ID, type: "answer", sdp: answer.sdp }));
+      } else if (msg.type === "candidate") {
+        await pc.addIceCandidate({ candidate: msg.candidate, sdpMid: msg.sdpMid });
+      }
+    };
+
+    ws.onclose = () => {
+      document.getElementById("status").textContent = "Signaling server closed";
+    };
+  </script>
+</body>
+
+</html>
