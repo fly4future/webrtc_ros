@@ -1,14 +1,9 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 
-#include <rtc/rtc.hpp>
-
 #include <nlohmann/json.hpp>
 
 #include <gst/gst.h>
-#include <gst/app/gstappsrc.h>
-#include <gst/app/gstappsink.h>
-
 #include <gst/sdp/gstsdpmessage.h>
 #include <gst/webrtc/rtcsessiondescription.h>
 

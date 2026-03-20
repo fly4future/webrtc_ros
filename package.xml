@@ -13,18 +13,13 @@
 
   <depend>rclcpp</depend>
   <depend>sensor_msgs</depend>
-  <depend>image_transport</depend>
 
-  <!-- apt-get install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-tools gstreamer1.0-x gstreamer1.0-alsa gstreamer1.0-gl gstreamer1.0-gtk3 gstreamer1.0-qt5 gstreamer1.0-pulseaudio gstreamer1.0-nice -->
   <depend>libgstreamer1.0-dev</depend>
   <depend>libgstreamer-plugins-base1.0-dev</depend>
+  <depend>libgstreamer-plugins-bad1.0-dev</depend>  <!-- For webrtc plugin -->
   <exec_depend>gstreamer1.0-nice</exec_depend>
 
   <depend>nlohmann-json-dev</depend>
-
-  <buildtool_depend>rosidl_default_generators</buildtool_depend>
-  <exec_depend>rosidl_default_runtime</exec_depend>
-  <member_of_group>rosidl_interface_packages</member_of_group>
 
   <export>
     <build_type>ament_cmake</build_type>

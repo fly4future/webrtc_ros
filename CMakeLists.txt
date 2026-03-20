@@ -13,24 +13,15 @@ endif()
 find_package(ament_cmake REQUIRED)
 
 set(ROS_DEPS
-  # Base
   rclcpp
-  # Messages
   sensor_msgs
-  # Image processing
-  # cv_bridge
-  # image_transport
-  # Web
-  # async_web_server_cpp
 )
 
 foreach(DEP IN LISTS ROS_DEPS)
   find_package(${DEP} REQUIRED)
 endforeach()
 
-
 set(EXTERNAL_DEPS
-  LibDataChannel
   nlohmann_json
 )
 
@@ -41,10 +32,8 @@ endforeach()
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GST REQUIRED
   gstreamer-1.0
-  gstreamer-app-1.0
-  gstreamer-video-1.0
-  gstreamer-webrtc-1.0
   gstreamer-sdp-1.0
+  gstreamer-webrtc-1.0
 )
 
 ## | ----------------- Build executable ----------------- |
@@ -63,7 +52,6 @@ target_include_directories(webrtc_streamer PRIVATE
 )
 
 target_link_libraries(webrtc_streamer
-  LibDataChannel::LibDataChannel
   nlohmann_json::nlohmann_json
   ${GST_LIBRARIES}
 )
