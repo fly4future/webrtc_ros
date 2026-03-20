@@ -191,11 +191,11 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
   // Create tracks for requested streams
   auto streams = requested_streams.empty() ? getAvailableImageTopics_() : requested_streams;
   RCLCPP_INFO(
-      get_logger(), "[%s] Creating session with %zu stream(s): %s", peer_id.c_str(), streams.size(),
+      get_logger(), "[%s] Creating session with %zu stream(s): %s\n", peer_id.c_str(), streams.size(),
       streams.empty()
           ? "none (will add all available)"
           : std::accumulate(std::next(streams.begin()), streams.end(), streams[0], [](std::string a, std::string b) {
-              return a + ", " + b;
+              return "- " + a + "\n" + b;
             }).c_str());
   for (const auto &stream : streams) {
     if (!existsImageTopic_(stream)) {
