@@ -229,6 +229,9 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
 
   // 3. Connect AppSrcs to ROS Subscriptions
   for (const auto &stream : requested_streams) {
+    if (!existsImageTopic_(stream))
+      continue;
+
     std::string src_name = "src_" + stream;
 
     TrackInfo track_info;
