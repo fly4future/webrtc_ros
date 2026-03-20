@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.5)
 project(webrtc_ros)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Enable compiler warnings
@@ -23,6 +23,7 @@ endforeach()
 
 set(EXTERNAL_DEPS
   nlohmann_json
+  websocketpp
 )
 
 foreach(DEP IN LISTS EXTERNAL_DEPS)
@@ -47,8 +48,10 @@ ament_target_dependencies(webrtc_streamer
 )
 
 target_include_directories(webrtc_streamer PRIVATE
-  include
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
   ${GST_INCLUDE_DIRS}
+  ${WEBSOCKETPP_INCLUDE_DIR}
 )
 
 target_link_libraries(webrtc_streamer

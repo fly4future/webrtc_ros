@@ -18,8 +18,11 @@
   <depend>libgstreamer-plugins-base1.0-dev</depend>
   <depend>libgstreamer-plugins-bad1.0-dev</depend>  <!-- For webrtc plugin -->
   <exec_depend>gstreamer1.0-nice</exec_depend>
+  <exec_depend>gstreamer1.0-plugins-bad</exec_depend>
+  <exec_depend>gstreamer1.0-plugins-ugly</exec_depend>
 
   <depend>nlohmann-json-dev</depend>
+  <depend>libwebsocketpp-dev</depend>
 
   <export>
     <build_type>ament_cmake</build_type>

@@ -10,56 +10,84 @@ WebRTCStreamer::WebRTCStreamer()
   // Setup WebSocket signaling
   this->declare_parameter("signaling_url", "ws://localhost:8000/uav999");
   setupSignaling_();
-  connectSignaling_();
 }
 
 void WebRTCStreamer::connectSignaling_() {
-  std::string url = this->get_parameter("signaling_url").as_string();
-  RCLCPP_INFO(get_logger(), "Connecting to signaling server at %s", url.c_str());
-  if (signaling_ws_client_.isOpen()) {
-    signaling_ws_client_.close();
+  // Clean previous thread if exists
+  if (ws_thread_.joinable())
+    ws_thread_.join();
+
+  signaling_ws_client_.reset();
+
+  websocketpp::lib::error_code ec;
+  std::string                  url = this->get_parameter("signaling_url").as_string();
+  WsClient::connection_ptr     con = signaling_ws_client_.get_connection(url, ec);
+  if (ec) {
+    RCLCPP_ERROR(get_logger(), "WebSocket connection error: %s", ec.message().c_str());
+    scheduleReconnect_();
+    return;
   }
-  signaling_ws_client_.open(url);
+
+  // Run WebSocket event loop in a separate thread
+  signaling_ws_client_.connect(con);
+  ws_thread_ = std::thread([this]() {
+    try {
+      signaling_ws_client_.run();
+    }
+    catch (const std::exception &e) {
+      RCLCPP_ERROR(get_logger(), "WebSocket client error: %s", e.what());
+    }
+  });
+}
+
+void WebRTCStreamer::scheduleReconnect_() {
+  reconnect_timer_ = this->create_wall_timer(std::chrono::seconds(3), [this]() {
+    // Cancel the timer so it only fires once per failure
+    reconnect_timer_->cancel();
+    connectSignaling_();
+  });
 }
 
 void WebRTCStreamer::setupSignaling_() {
-  signaling_ws_client_.onOpen([this]() {
+  signaling_ws_client_.clear_access_channels(websocketpp::log::alevel::all);
+  signaling_ws_client_.init_asio();
+
+  signaling_ws_client_.set_open_handler([this](websocketpp::connection_hdl hdl) {
     RCLCPP_INFO(get_logger(), "Connected to signaling server");
+    ws_hdl_ = hdl;
+
+    // Stop the reconnect timer once successfully connected
     if (reconnect_timer_)
       reconnect_timer_->cancel();
   });
 
-  signaling_ws_client_.onMessage([this](std::variant<rtc::binary, rtc::string> message) {
-    if (std::holds_alternative<rtc::string>(message)) {
-      const std::string &msg_str = std::get<rtc::string>(message);
-      RCLCPP_INFO(get_logger(), "Received signaling message: %s", msg_str.c_str());
-      handleSignalingMessage_(msg_str);
+  signaling_ws_client_.set_message_handler([this](websocketpp::connection_hdl, WsClient::message_ptr msg) {
+    if (msg->get_opcode() == websocketpp::frame::opcode::text) {
+      std::string payload = msg->get_payload();
+      RCLCPP_INFO(get_logger(), "Received signaling message: %s", payload.c_str());
+      handleSignalingMessage_(payload);
     } else {
-      RCLCPP_WARN(get_logger(), "Received unsupported binary message");
+      RCLCPP_WARN(get_logger(), "Received unsupported non-text message");
     }
   });
 
-  signaling_ws_client_.onClosed([this]() {
+  signaling_ws_client_.set_close_handler([this](websocketpp::connection_hdl) {
     RCLCPP_WARN(get_logger(), "Disconnected from signaling server. Trying to reconnect...");
-
-    if (reconnect_timer_) {
-      reconnect_timer_->reset();
-      return;
-    }
-
-    reconnect_timer_ = this->create_wall_timer(std::chrono::seconds(3), [this]() {
-      if (!signaling_ws_client_.isOpen())
-        connectSignaling_();
-    });
+    scheduleReconnect_();
   });
 
-  signaling_ws_client_.onError(
-      [this](const std::string &error) { RCLCPP_ERROR(get_logger(), "Signaling server error: %s", error.c_str()); });
+  signaling_ws_client_.set_fail_handler([this](websocketpp::connection_hdl) {
+    RCLCPP_ERROR(get_logger(), "Failed to connect to signaling server. Retrying...");
+    scheduleReconnect_();
+  });
+
+  // Start the Initial connection attempt
+  connectSignaling_();
 }
 
 void WebRTCStreamer::sendSignaling(const json &msg) {
   std::string msg_str = msg.dump();
-  signaling_ws_client_.send(msg_str);
+  signaling_ws_client_.send(ws_hdl_, msg_str, websocketpp::frame::opcode::text);
   RCLCPP_DEBUG(get_logger(), "Sent signaling message: %s", msg_str.c_str());
 }
 

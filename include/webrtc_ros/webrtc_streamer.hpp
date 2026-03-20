@@ -1,13 +1,18 @@
+#pragma once
+
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 
 #include <nlohmann/json.hpp>
+#include <websocketpp/config/asio_no_tls_client.hpp>
+#include <websocketpp/client.hpp>
 
 #include <gst/gst.h>
 #include <gst/sdp/gstsdpmessage.h>
 #include <gst/webrtc/rtcsessiondescription.h>
 
-using json = nlohmann::json;
+using json     = nlohmann::json;
+using WsClient = websocketpp::client<websocketpp::config::asio_client>;
 
 struct TrackInfo
 {
@@ -40,11 +45,15 @@ class WebRTCStreamer : public rclcpp::Node {
 
  private:
   // Signaling server (WebSocket)
-  rtc::WebSocket               signaling_ws_client_;
+  WsClient                    signaling_ws_client_;
+  websocketpp::connection_hdl ws_hdl_;
+  std::thread                 ws_thread_;
+
   rclcpp::TimerBase::SharedPtr reconnect_timer_;
 
-  void connectSignaling_();
   void setupSignaling_();
+  void connectSignaling_();
+  void scheduleReconnect_();
   void handleSignalingMessage_(const std::string &msg);
 
  public:
