@@ -12,6 +12,17 @@ WebRTCStreamer::WebRTCStreamer()
   setupSignaling_();
 }
 
+WebRTCStreamer::~WebRTCStreamer() {
+  // Clean up WebSocket client and thread
+  signaling_ws_client_.stop();
+  if (ws_thread_.joinable())
+    ws_thread_.join();
+
+  // Clean up GStreamer sessions
+  std::unique_lock lock(mtx_sessions_);
+  sessions_.clear();
+}
+
 void WebRTCStreamer::connectSignaling_() {
   // Clean previous thread if exists
   if (ws_thread_.joinable())

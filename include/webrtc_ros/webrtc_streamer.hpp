@@ -42,6 +42,7 @@ struct PeerSession
 class WebRTCStreamer : public rclcpp::Node {
  public:
   WebRTCStreamer();
+  ~WebRTCStreamer();
 
  private:
   // Signaling server (WebSocket)
