@@ -1,4 +1,5 @@
 #include "webrtc_ros/webrtc_streamer.hpp"
+#include <rclcpp/logging.hpp>
 
 WebRTCStreamer::WebRTCStreamer()
     : Node("webrtc_streamer") {
@@ -112,22 +113,23 @@ void WebRTCStreamer::handleSignalingMessage_(const std::string &payload) {
       return;
 
     if (type == "request") {
-      if (!msg.contains("streams") || !msg["streams"].is_array()) {
-        RCLCPP_WARN(get_logger(), "Ignoring request from %s: missing 'streams' field", peer_id.c_str());
-
-        json err;
-        err["id"]      = peer_id;
-        err["type"]    = "error";
-        err["message"] = "Missing 'streams' field in request";
-
-        sendSignaling(err);
-        return;
-      }
-
       std::vector<std::string> requested;
-      for (auto &s : msg["streams"])
-        requested.push_back(s.get<std::string>());
-      RCLCPP_DEBUG(get_logger(), "[%s] Requested streams: %s", peer_id.c_str(), msg["streams"].dump().c_str());
+      if (msg.contains("streams")) {
+        if (!msg["streams"].is_array()) {
+          RCLCPP_WARN(get_logger(), "Ignoring request from %s: missing 'streams' field", peer_id.c_str());
+
+          json err;
+          err["id"]      = peer_id;
+          err["type"]    = "error";
+          err["message"] = "Missing 'streams' field in request";
+
+          sendSignaling(err);
+          return;
+        } else {
+          for (auto &s : msg["streams"])
+            requested.push_back(s.get<std::string>());
+        }
+      }
       createPeerSession_(peer_id, requested);
     } else if (type == "answer") {
       std::unique_lock lock(mtx_sessions_);
@@ -187,7 +189,8 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
   std::string pipeline_desc = "webrtcbin name=webrtc bundle-policy=max-bundle ";
 
   // Create tracks for requested streams
-  for (const auto &stream : requested_streams) {
+  auto streams = requested_streams.empty() ? getAvailableImageTopics_() : requested_streams;
+  for (const auto &stream : streams) {
     if (!existsImageTopic_(stream)) {
       RCLCPP_WARN(get_logger(), "[%s] Requested stream '%s' does not exist or is not an Image topic", peer_id.c_str(),
                   stream.c_str());
@@ -228,7 +231,7 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
   g_signal_connect(session->webrtc, "on-ice-candidate", G_CALLBACK(onICECandidate_), this);
 
   // 3. Connect AppSrcs to ROS Subscriptions
-  for (const auto &stream : requested_streams) {
+  for (const auto &stream : streams) {
     if (!existsImageTopic_(stream))
       continue;
 
@@ -323,13 +326,14 @@ void WebRTCStreamer::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg,
 
   // Set caps based on image encoding
   std::map<std::string, std::string> encoding_map = {
-    { "rgb8", "RGB" },
-    { "bgr8", "BGR" },
-    { "mono8", "GRAY8" },
-    { "yuv422_yuy2", "YUY2" },
+    { "rgb8", "RGB" },         //
+    { "bgr8", "BGR" },         //
+    { "mono8", "GRAY8" },      //
+    { "16UC1", "GRAY16_LE" },  //
+    { "yuv422_yuy2", "YUY2" }, //
   };
   if (encoding_map.find(msg->encoding) == encoding_map.end()) {
-    RCLCPP_ERROR(get_logger(), "Unsupported image encoding: %s", msg->encoding.c_str());
+    RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 5000, "Unsupported image encoding: %s", msg->encoding.c_str());
     gst_buffer_unref(buf);
     return;
   }
@@ -346,15 +350,24 @@ void WebRTCStreamer::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg,
   gst_buffer_unref(buf);
 }
 
-bool WebRTCStreamer::existsImageTopic_(const std::string &topic_name) {
+std::vector<std::string> WebRTCStreamer::getAvailableImageTopics_() {
   auto graph  = this->get_node_graph_interface();
   auto topics = graph->get_topic_names_and_types(true);
 
-  std::string image_message_type = "sensor_msgs/msg/Image";
+  std::string              image_message_type = "sensor_msgs/msg/Image";
+  std::vector<std::string> result;
 
-  return std::any_of(topics.begin(), topics.end(), [&](const auto &t) {
-    return t.first == topic_name && (std::find(t.second.begin(), t.second.end(), image_message_type) != t.second.end());
-  });
+  for (const auto &t : topics) {
+    if (std::find(t.second.begin(), t.second.end(), image_message_type) != t.second.end())
+      result.push_back(t.first);
+  }
+
+  return result;
+}
+
+bool WebRTCStreamer::existsImageTopic_(const std::string &topic_name) {
+  auto available_topics = getAvailableImageTopics_();
+  return std::find(available_topics.begin(), available_topics.end(), topic_name) != available_topics.end();
 }
 
 int main(int argc, char **argv) {

@@ -76,5 +76,6 @@ class WebRTCStreamer : public rclcpp::Node {
   static void onICECandidate_(GstElement *webrtc, guint mline_index, gchar *candidate, gpointer user_data);
 
   // Utility
-  bool existsImageTopic_(const std::string &topic_name);
+  bool                     existsImageTopic_(const std::string &topic_name);
+  std::vector<std::string> getAvailableImageTopics_();
 };
