@@ -59,6 +59,17 @@
       max-height: 50dvh;
       aspect-ratio: 16 / 9;
     }
+
+    select {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1;
+      padding: 0.5em;
+      background: rgba(255, 255, 255, 0.8);
+      border: none;
+      border-radius: 4px;
+    }
   </style>
 
 </head>
@@ -66,18 +77,27 @@
 <body>
   <h1>WebRTC ROS</h1>
 
-  <h3 id="status">Streams</h3>
+  <h3 id="status">Connecting to signaling server...</h3>
+
   <a href="chrome://webrtc-internals" target="_blank" id="webrtc-analytics">Open webrtc-internals (Click to copy
     URL)</a>
 
-  <div id="videos" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:16px"></div>
+  <div id="videos" style="position: relative; ">
+    <select id="stream-select">
+      <option value="" disabled selected>Select a stream</option>
+    </select>
+
+    <video autoplay muted playsinline id="remote-video"></video>
+
+  </div>
 
   <script>
     const MY_ID = "browser-" + Math.random().toString(36).substr(2, 8);
     const REMOTE_ID = "uav999";
     const STREAMS = []; // ["/oak/stereo/image_raw"];
 
-    document.getElementById("status").textContent = "Connecting to signaling server...";
+    const select = document.getElementById("stream-select");
+    const video = document.getElementById("remote-video");
     document.getElementById("webrtc-analytics").onclick = (e) => {
       e.preventDefault();
       navigator.clipboard.writeText("chrome://webrtc-internals").then(() => {
@@ -87,23 +107,27 @@
       });
     };
 
+    let availableStreams = [];
+
+    select.addEventListener("change", () => {
+      const track = availableStreams[select.value];
+      if (track) {
+        const stream = new MediaStream([track]);
+        video.srcObject = stream;
+      }
+    });
+
     let ws, pc;
     ws = new WebSocket(`ws://localhost:8000/${MY_ID}`);
     pc = new RTCPeerConnection({ bundlePolicy: "max-bundle" });
 
-    // Create <video> elements for each incoming track and handle autoplay
     pc.ontrack = (evt) => {
-      const wrapper = document.createElement("div");
-      wrapper.style = "text-align:center";
-      wrapper.innerHTML = `<p><b>${evt.track.label || "stream"}</b></p>`;
-
-      const video = document.createElement("video");
-      video.autoplay = video.muted = video.playsInline = true;
-
-      video.srcObject = new MediaStream([evt.track]);
-
-      wrapper.appendChild(video);
-      document.getElementById("videos").appendChild(wrapper);
+      console.log("Received track:", evt.track);
+      availableStreams.push(evt.track);
+      const option = document.createElement("option");
+      option.value = availableStreams.length - 1;
+      option.textContent = evt.track.label || `Stream ${availableStreams.length}`;
+      select.appendChild(option);
     };
 
     pc.onicecandidate = (evt) => {

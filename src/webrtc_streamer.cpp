@@ -1,5 +1,4 @@
 #include "webrtc_ros/webrtc_streamer.hpp"
-#include <rclcpp/logging.hpp>
 
 WebRTCStreamer::WebRTCStreamer()
     : Node("webrtc_streamer") {
