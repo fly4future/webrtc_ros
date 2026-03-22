@@ -211,17 +211,40 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
                      " format=time is-live=true do-timestamp=true ! "
                      "videoconvert ! ";
 
+    // |-----------------------------------------------------------------------------------------------------------|
+    // |                                              AV1 Encoding                                                 |
+    // |                                             ==============                                                |
+    // |  it needs VAEntrypointVLD and VAEntrypointEncSlice support in the driver (check with `vainfo | grep AV1`) |
+    // |-----------------------------------------------------------------------------------------------------------|
     // Just CPU
-    pipeline_desc += "video/x-raw,format=I420 !"
-                     "av1enc target-bitrate=1000 cpu-used=8 usage-profile=realtime end-usage=cbr ! ";
+    // pipeline_desc += "video/x-raw,format=I420 !"
+    //                  "av1enc target-bitrate=1000 cpu-used=8 usage-profile=realtime end-usage=cbr ! ";
 
-    //  Intel/AMD hardware-accelerated
+    // Intel/AMD hardware-accelerated
     // pipeline_desc += "video/x-raw,format=NV12 ! "
-    //                  "vaapih264enc rate-control=cbr bitrate=1000 ! ";
+    //                  "vaav1enc bitrate=1000 rate-control=cbr ! ";
 
-    pipeline_desc += "av1parse ! "
-                     "rtpav1pay pt=96 ! "
-                     "application/x-rtp,media=video,encoding-name=AV1,payload=96,clock-rate=90000 ! webrtc. ";
+    // Rest of the AV1 pipeline (same for both CPU and HW)
+    // pipeline_desc += "av1parse ! "
+    //                  "rtpav1pay pt=96 ! "
+    //                  "application/x-rtp,media=video,encoding-name=AV1,payload=96,clock-rate=90000 ! webrtc. ";
+
+    // |---------------------------------------------------------------------------------------------------------------|
+    // |                                              H.264 Encoding                                                   |
+    // |                                             ================                                                  |
+    // | widely supported and compatible with most clients, but check for VAEntrypointEncSlice support for HW encoding |
+    // |---------------------------------------------------------------------------------------------------------------|
+    // Just CPU
+    // pipeline_desc += "x264enc tune=zerolatency bitrate=1000 speed-preset=ultrafast key-int-max=30 ! "
+    //                  "video/x-h264,profile=constrained-baseline ! ";
+
+    // Intel/AMD hardware-accelerated
+    pipeline_desc += "vah264enc bitrate=1000 rate-control=cbr ! "
+                     "h264parse ! ";
+
+    // Rest of the H.264 pipeline (same for both CPU and HW)
+    pipeline_desc += "rtph264pay config-interval=-1 pt=96 ! "
+                     "application/x-rtp,media=video,encoding-name=H264,payload=96,clock-rate=90000 ! webrtc. ";
   }
 
   GError *err       = nullptr;
