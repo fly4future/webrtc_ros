@@ -337,9 +337,12 @@ void WebRTCStreamer::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg,
     return;
   }
 
-  GstCaps *caps = gst_caps_new_simple("video/x-raw", "format", G_TYPE_STRING, encoding_map.at(msg->encoding).c_str(),
-                                      "width", G_TYPE_INT, msg->width, "height", G_TYPE_INT, msg->height, "framerate",
-                                      GST_TYPE_FRACTION, 30, 1, nullptr);
+  GstCaps *caps = gst_caps_new_simple("video/x-raw", //
+                                      "format", G_TYPE_STRING, encoding_map.at(msg->encoding).c_str(), "width",
+                                      G_TYPE_INT, msg->width,               //
+                                      "height", G_TYPE_INT, msg->height,    //
+                                      "framerate", GST_TYPE_FRACTION, 0, 1, //
+                                      nullptr);
   g_object_set(target_appsrc, "caps", caps, nullptr);
   gst_caps_unref(caps);
 
