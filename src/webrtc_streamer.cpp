@@ -210,10 +210,11 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
     pipeline_desc += "appsrc name=" + src_name +
                      " format=time is-live=true do-timestamp=true ! "
                      "videoconvert ! "
-                     "x264enc tune=zerolatency bitrate=1000 speed-preset=ultrafast key-int-max=30 ! "
-                     "video/x-h264,profile=constrained-baseline ! "
-                     "rtph264pay config-interval=-1 pt=96 ! "
-                     "application/x-rtp,media=video,encoding-name=H264,payload=96,clock-rate=90000 ! webrtc. ";
+                     "video/x-raw,format=I420 ! "
+                     "av1enc target-bitrate=1000   usage-profile=realtime end-usage=cbr ! "
+                     "av1parse ! "
+                     "rtpav1pay pt=96 ! "
+                     "application/x-rtp,media=video,encoding-name=AV1,payload=96,clock-rate=90000 ! webrtc. ";
   }
 
   GError *err       = nullptr;
