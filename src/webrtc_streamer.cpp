@@ -209,10 +209,17 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
 
     pipeline_desc += "appsrc name=" + src_name +
                      " format=time is-live=true do-timestamp=true ! "
-                     "videoconvert ! "
-                     "video/x-raw,format=I420 ! "
-                     "av1enc target-bitrate=1000   usage-profile=realtime end-usage=cbr ! "
-                     "av1parse ! "
+                     "videoconvert ! ";
+
+    // Just CPU
+    pipeline_desc += "video/x-raw,format=I420 !"
+                     "av1enc target-bitrate=1000 cpu-used=8 usage-profile=realtime end-usage=cbr ! ";
+
+    //  Intel/AMD hardware-accelerated
+    // pipeline_desc += "video/x-raw,format=NV12 ! "
+    //                  "vaapih264enc rate-control=cbr bitrate=1000 ! ";
+
+    pipeline_desc += "av1parse ! "
                      "rtpav1pay pt=96 ! "
                      "application/x-rtp,media=video,encoding-name=AV1,payload=96,clock-rate=90000 ! webrtc. ";
   }
