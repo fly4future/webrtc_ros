@@ -161,6 +161,12 @@ void WebRTCStreamer::handleSignalingMessage_(const std::string &payload) {
       std::string candidate_str = msg["candidate"].get<std::string>();
       int         sdp_mid_index = std::stoi(msg["sdpMLineIndex"].get<std::string>()); // GStreamer needs the index
 
+      // Ignore mDNS candidates to prevent resolution errors in GStreamer
+      if (candidate_str.find(".local") != std::string::npos) {
+        RCLCPP_DEBUG(get_logger(), "Ignoring mDNS candidate: %s", candidate_str.c_str());
+        return;
+      }
+
       g_signal_emit_by_name(webrtc, "add-ice-candidate", sdp_mid_index, candidate_str.c_str());
     } else if (type == "offer") {
       // Stream providers are the ones that create offers, so we don't expect to receive this type. Just log it.
@@ -185,7 +191,9 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
   auto session     = std::make_shared<PeerSession>();
   session->peer_id = peer_id;
 
-  std::string pipeline_desc = "webrtcbin name=webrtc bundle-policy=max-bundle ";
+  // Add the webrtcbin element with the public STUN server for ICE candidates
+  std::string pipeline_desc =
+      "webrtcbin name=webrtc bundle-policy=max-bundle stun-server=stun://stun.l.google.com:19302 ";
 
   // Create tracks for requested streams
   auto streams = requested_streams.empty() ? getAvailableImageTopics_() : requested_streams;
