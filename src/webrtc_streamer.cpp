@@ -4,11 +4,16 @@ WebRTCStreamer::WebRTCStreamer()
     : Node("webrtc_streamer") {
   RCLCPP_INFO(get_logger(), "Starting WebRTC Streamer...");
 
+  // Paramters
+  this->declare_parameter("signaling_url", "ws://localhost:8000/uav999");
+  this->declare_parameter("reconnect_interval_sec", 3);
+
+  this->declare_parameter("encoder", "h264");        // Options: "h264" or "av1"
+  this->declare_parameter("hw_acceleration", "cpu"); // Options: "cpu", "nv" (NVIDIA), "vaapi" (Intel/AMD)
+
   // Initialize GStreamer once globally
   gst_init(nullptr, nullptr);
 
-  // Setup WebSocket signaling
-  this->declare_parameter("signaling_url", "ws://localhost:8000/uav999");
   setupSignaling_();
 }
 
@@ -52,11 +57,12 @@ void WebRTCStreamer::connectSignaling_() {
 }
 
 void WebRTCStreamer::scheduleReconnect_() {
-  reconnect_timer_ = this->create_wall_timer(std::chrono::seconds(3), [this]() {
-    // Cancel the timer so it only fires once per failure
-    reconnect_timer_->cancel();
-    connectSignaling_();
-  });
+  reconnect_timer_ =
+      this->create_wall_timer(std::chrono::seconds(this->get_parameter("reconnect_interval_sec").as_int()), //
+                              [this]() {
+                                reconnect_timer_->cancel();
+                                connectSignaling_();
+                              });
 }
 
 void WebRTCStreamer::setupSignaling_() {
@@ -211,40 +217,45 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
                      " format=time is-live=true do-timestamp=true ! "
                      "videoconvert ! ";
 
-    // |-----------------------------------------------------------------------------------------------------------|
-    // |                                              AV1 Encoding                                                 |
-    // |                                             ==============                                                |
-    // |  it needs VAEntrypointVLD and VAEntrypointEncSlice support in the driver (check with `vainfo | grep AV1`) |
-    // |-----------------------------------------------------------------------------------------------------------|
-    // Just CPU
-    // pipeline_desc += "video/x-raw,format=I420 !"
-    //                  "av1enc target-bitrate=1000 cpu-used=8 usage-profile=realtime end-usage=cbr ! ";
+    std::string encoder  = this->get_parameter("encoder").as_string();
+    std::string hw_accel = this->get_parameter("hw_acceleration").as_string();
 
-    // Intel/AMD hardware-accelerated
-    // pipeline_desc += "video/x-raw,format=NV12 ! "
-    //                  "vaav1enc bitrate=1000 rate-control=cbr ! ";
+    if (encoder == "av1") {
+      // install rtp plugin https://github.com/GStreamer/gst-plugins-rs
+      if (hw_accel == "vaapi") {
+        // It needs VAEntrypointVLD and VAEntrypointEncSlice support in the driver (check with `vainfo | grep AV1`)
+        pipeline_desc += "video/x-raw,format=NV12 ! "
+                         "vaav1enc bitrate=1000 rate-control=cbr ! ";
+      } else {
+        if (hw_accel != "cpu")
+          RCLCPP_WARN(this->get_logger(), "Unsupported hw_acceleration '%s' for AV1. Falling back to CPU.",
+                      hw_accel.c_str());
 
-    // Rest of the AV1 pipeline (same for both CPU and HW)
-    // pipeline_desc += "av1parse ! "
-    //                  "rtpav1pay pt=96 ! "
-    //                  "application/x-rtp,media=video,encoding-name=AV1,payload=96,clock-rate=90000 ! webrtc. ";
+        pipeline_desc += "video/x-raw,format=I420 !"
+                         "av1enc target-bitrate=1000 cpu-used=8 usage-profile=realtime end-usage=cbr ! ";
+      }
 
-    // |---------------------------------------------------------------------------------------------------------------|
-    // |                                              H.264 Encoding                                                   |
-    // |                                             ================                                                  |
-    // | widely supported and compatible with most clients, but check for VAEntrypointEncSlice support for HW encoding |
-    // |---------------------------------------------------------------------------------------------------------------|
-    // Just CPU
-    // pipeline_desc += "x264enc tune=zerolatency bitrate=1000 speed-preset=ultrafast key-int-max=30 ! "
-    //                  "video/x-h264,profile=constrained-baseline ! ";
+      pipeline_desc += "av1parse ! "
+                       "rtpav1pay pt=96 ! "
+                       "application/x-rtp,media=video,encoding-name=AV1,payload=96,clock-rate=90000 ! webrtc. ";
+    } else if (encoder == "h264") {
+      if (hw_accel == "vaapi") {
+        pipeline_desc += "vah264enc bitrate=1000 rate-control=cbr ! "
+                         "h264parse ! ";
+      } else {
+        if (hw_accel != "cpu")
+          RCLCPP_WARN(this->get_logger(), "Unsupported hw_acceleration '%s' for H.264. Falling back to CPU.",
+                      hw_accel.c_str());
 
-    // Intel/AMD hardware-accelerated
-    pipeline_desc += "vah264enc bitrate=1000 rate-control=cbr ! "
-                     "h264parse ! ";
-
-    // Rest of the H.264 pipeline (same for both CPU and HW)
-    pipeline_desc += "rtph264pay config-interval=-1 pt=96 ! "
-                     "application/x-rtp,media=video,encoding-name=H264,payload=96,clock-rate=90000 ! webrtc. ";
+        pipeline_desc += "x264enc tune=zerolatency bitrate=1000 speed-preset=ultrafast key-int-max=30 ! "
+                         "video/x-h264,profile=constrained-baseline ! ";
+      }
+      pipeline_desc += "rtph264pay config-interval=-1 pt=96 ! "
+                       "application/x-rtp,media=video,encoding-name=H264,payload=96,clock-rate=90000 ! webrtc. ";
+    } else {
+      RCLCPP_ERROR(this->get_logger(), "Unsupported encoder '%s'.", encoder.c_str());
+      rclcpp::shutdown();
+    }
   }
 
   GError *err       = nullptr;
