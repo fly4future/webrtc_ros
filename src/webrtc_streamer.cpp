@@ -241,7 +241,7 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
     } else if (encoder == "h264") {
       if (hw_accel == "vaapi") {
         pipeline_desc += "video/x-raw,format=NV12 ! "
-                         "vaapih264enc rate-control=cbr bitrate=1000 ! "
+                         "vaapih264enc rate-control=cqp bitrate=1000 ! "
                          "h264parse ! ";
       } else {
         if (hw_accel != "cpu")
