@@ -1,201 +1,79 @@
 # webrtc_ros Signaling Protocol Specification
 
-This document outlines the signaling protocol used by the webrtc_ros package to
-communicate between clients. It was initially designed to communicate between a
-web client and webrtc_ros_server using Websockets, but has the potential to
-connect two ROS nodes so that it could be used as an image transport.
+This document outlines the signaling protocol used by the `webrtc_ros` package to
+communicate between clients.
 
 While WebRTC provides the required infrastructure to stream video, audio, and
-data in real time, it requires a signaling channel to be established in order
-to exchange information in order to create the WebRTC connection. Additionally,
-the signaling channel is used to exchange information for which ROS topics to
-use. Usually the signaling channel is setup by a server that two clients
-connect to, but in order to make webrtc_ros_server self contained it acts as
-a server and a WebRTC client. See more information
-[here](http://www.html5rocks.com/en/tutorials/webrtc/infrastructure/).
+data in real time, it requires a signaling channel to coordinate the connection.
+This channel handles the exchange of Session Description Protocol (SDP) offers
+and answers, as well as Interactive Connectivity Establishment (ICE) candidates, all
+of which are essential for WebRTC to establish a connection between clients. The
+`webrtc_ros` package implements a custom, lightweight signaling protocol that gives
+clients a simple and flexible way to exchange this setup information.
 
-The webrtc_ros signaling protocol is based on an exchange of JSON objects.
-Currently each object is sent in it's own Websocket message in order to
-easily separate them. Each message contains a type field that distinguishes
-between different message types.
+The protocol relies on exchanging JSON objects over WebSockets. To keep parsing
+straightforward, each JSON object is transmitted in its own WebSocket message.
+Every message includes a `type` field to identify its purpose.
 
-## 1. The webrtc_ros signaling transport
+1. **The `webrtc_ros` signaling server**
 
-webrtc_ros_server accepts Websocket connections (by default on port 8080 at
-"/webrtc"). Each Websocket connection will create a corresponding WebRTC client
-on the server. However, the peer connections will not begin exchanging SDP
-messages until the first configure message is sent. Messages take the basic
-form of:
+   This package provides a signaling server that clients can connect to using WebSockets. The server listens for incoming connections and routes messages between clients. Clients can connect to the signaling server at `ws://<server_address>:<port>/<id>`, where `<server_address>` is the address of the machine running the signaling server, `<port>` is the port it's listening on (default is 8000), and `<id>` is a unique identifier for the client (e.g., `uav124`).
 
-```json
-{ "type": <string> }
-```
+   To run the signaling server, use the following command:
 
-Additional fields can also be specified to send additional information.
+   ```bash
+   python3 scripts/signaling_server.py 0.0.0.0:8000
+   ```
 
-## 2. The webrtc_ros signaling protocol
+   > [!NOTE]
+   > You should have the `websockets` Python package installed to run the signaling server. You might want to set up a virtual environment and install the package there to avoid conflicts with other Python packages on your system.
 
-Message Types:
+   When a client connects to the signaling server, it can send messages to other clients by specifying their unique identifiers. The signaling server will route messages based on these identifiers, allowing clients to exchange the necessary information to establish WebRTC connections.
 
-- **ice_candidate** - A message that contains an ICE candidate
-- **offer** - A message that contains a WebRTC SDP offer
-- **answer** - A message that contains a WebRTC SDP answer
-- **configure** - A message that configures media and data streams
+   ```json
+   {
+     "type": <message_type>,
+     "to": <recipient_id>,
+     ... other fields depending on message type ...
+   }
+   ```
 
-### 2.1 ICE Candidate Message
+2. **The `webrtc_ros` signaling protocol**
 
-ICE candidate messages are sent with ICE candidates that are used by WebRTC to
-establish connections. Messages take the form:
+   Message Types:
+   - **ice_candidate** - A message that contains an ICE candidate
+   - **offer** - A message that contains a WebRTC SDP offer
+   - **answer** - A message that contains a WebRTC SDP answer
+   - **request** - A message that requests an action from the remote client
+   1. **ICE Candidate Message**
+      This message is used to exchange ICE candidates between clients. ICE candidates are network information that WebRTC uses to establish peer-to-peer connections. Each candidate includes details about the network interface and port that can be used for communication.
 
-```json
-{ "type": "ice_candidate",
-  "sdp_mid": <string>,
-  "sdp_mline_index": <int>,
-  "candiate": <string>
-}
-```
+      ```jsonc
+      {
+        "type": "ice_candidate",
+        "sdp_mid": <string>,      // The media stream identifier (e.g., "video")
+        "sdp_mline_index": <int>, // The index of the media description in the SDP
+        "candidate": <string>     // The ICE candidate string
+      }
+      ```
 
-More documentation on the attributes can be found
-[here](http://www.w3.org/TR/webrtc/#attributes-3).
+   2. **SDP Offer and Answer Message**
+      These messages are used to exchange SDP offers and answers between clients. The offer describes the media capabilities and streams of the sender, while the answer responds with the capabilities and streams of the receiver.
 
-### 2.2 SDP Offer and Answer Message
+      ```jsonc
+      {
+        "type": "offer" | "answer",
+        "sdp": <string> // The SDP string describing the media session
+      }
+      ```
 
-Offer and Answer messages are exchanged by WebRTC to describe the capabilities
-and streams of the clients. They take the form:
+   3. **Request Message**
+      This message is used to request a list of streams from the remote client. The remote client should respond with an "offer" message containing an SDP offer that describes the available streams.
 
-```json
-{ "type": "offer" | "answer",
-  "sdp": <string>
-}
-```
-
-### 2.3 Configure Message
-
-Configure messages allow the clients to request actions of the other client.
-They can be used to ask a client to add a stream that is a republishing of a
-ROS topic, remove a stream, etc. Once a configure message is sent the receiver
-responds with an SDP offer, which is responded to with a SDP answer. Configure
-messages take the form:
-
-```json
-{ "type": "configure",
-  "actions": [<action>]
-}
-```
-
-An action is of the form:
-
-```json
-{ "type": <string> }
-```
-
-with additional properties depending on the type of the action.
-
-Action Types:
-
-- **add_stream** - Tell the remote client start a new stream
-- **remove_stream** - Tell the remote client to remove a stream
-- **add_video_track** - Add a video track to a remote client's stream
-- **add_audio_track** - Add a audio track to a remote client's stream
-- **expect_stream** - Tell the remote client to expect a stream
-- **expect_video_track** - Tell the remote client to expect a video track
-  and what to do with the track it receives
-
-### 2.3.1 add_stream
-
-```json
-{ "type": "add_stream",
-  "id": <string>
-}
-```
-
-### 2.3.2 remove_stream
-
-```json
-{ "type": "remove_stream",
-  "id": <string>
-}
-```
-
-### 2.3.3 add_video_track
-
-```json
-{ "type": "add_video_track",
-  "stream_id": <string>,
-  "id": <string>,
-  "src": <string>
-}
-```
-
-### 2.3.3 add_audio_track
-
-```json
-{ "type": "add_audio_track",
-  "stream_id": <string>,
-  "id": <string>,
-  "src": <string>
-}
-```
-
-When adding the stream the remote client uses the src field to determine where
-to get the video from.
-
-### 2.3.4 expect_stream
-
-```json
-{ "type": "expect_stream",
-  "id": <string>
-}
-```
-
-### 2.3.5 expect_video_track
-
-```json
-{ "type": "expect_video_track",
-  "stream_id": <string>,
-  "id": <string>,
-  "dest": <string>
-}
-```
-
-### 3. Stream Sources
-
-Stream sources are specified as a URI with a scheme and path component.
-
-### 3.1 Video Track Sources
-
-### 3.1.1 ROS Image Source ( ros_image:_ros_topic_ )
-
-The ROS image source uses image_transport to subscribe to images from a ROS
-system. It uses the received images as the video track. The URI path component
-is used as the subscribed ROS topic.
-
-### 3.2 Audio Track Sources ( local: )
-
-Streams audio from inputs on the machine the webrtc_ros node is running on.
-Currently this just uses the default input source, but may be expanded in the
-future to add support for selecting a source.
-
-### 3.2.1 Local Audio Source
-
-The ROS image source uses image_transport to subscribe to images from a ROS
-system. It uses the received images as the video track. The URI path component
-is used as the subscribed ROS topic.
-
-### 4. Stream Destinations
-
-Stream destinations are specified as a URI with a scheme and path component.
-
-### 4.1 Video Track Destinations
-
-### 4.1.1 ROS Image Destinations ( ros_image:_ros_topic_ )
-
-The ROS image destination uses image_transport to publish to images from a ROS
-system. It publishes the received frames to the ROS topic represented by the
-URI path component.
-
-### 4.2 Audio Track Destinations
-
-Currently it is not possible to select the destination of an audio track. All
-received audio tracks will be output on the default audio device on the machine
-the server is running on.
+      ```jsonc
+      {
+        "type": "request",
+        "id": <string> // The remote client's unique identifier (e.g., "uav124")
+        "streams": <array of strings> // Optional: A list of stream names to request (e.g., ["camera1", "camera2"]), if not provided, the remote client should include all available streams in the offer.
+      }
+      ```
