@@ -96,5 +96,5 @@ You have to run the signaling server first, and then the streamer node. You can 
    > ros2 run webrtc_ros webrtc_streamer --ros-args \
    >  -p signaling_server_url:=ws://localhost:8173/uav124 \ # The URL of the signaling server, including the unique client ID (e.g., "uav124")
    >  -p encoder:=h264 \                                    # The video encoding format ("h264" or "av1")
-   >  -p hw_acceleration:=vapi                              # The hardware acceleration method ("cpu", "nv" for NVIDIA, "vaapi" for Intel/AMD)
+   >  -p hw_acceleration:=vaapi                             # The hardware acceleration method ("cpu", "nv" for NVIDIA, "vaapi" for Intel/AMD)
    > ```
