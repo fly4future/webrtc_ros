@@ -23,7 +23,11 @@ Package to stream ROS video topics using WebRTC, with a custom signaling server 
 
 ## :pushpin:About The Project
 
+<div align="center">
+
 ![Demo](https://github.com/user-attachments/assets/cbe1fa32-3658-43bd-8e14-e161b81c4f14)
+
+</div>
 
 WebRTC is a powerful technology that enables real-time communication of audio, video, and data between web browsers and other clients. The `webrtc_ros` package provides a custom signaling server and protocol specifically designed for streaming ROS video topics using WebRTC. This allows ROS users to easily set up real-time video streaming from their robots to web browsers or other WebRTC-enabled clients, without needing to worry about the complexities of WebRTC signaling. The package is lightweight and flexible, making it a great choice for ROS users who want to leverage the power of WebRTC for their video streaming needs.
 
