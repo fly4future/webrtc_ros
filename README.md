@@ -66,8 +66,10 @@ To get a local copy up and running, follow these simple example steps.
    colcon build
    ```
 
-> [!NOTE]
-> To run the av1 encoder, you need to install the rtp plugin from https://github.com/GStreamer/gst-plugins-rs
+> [!IMPORTANT]
+>
+> - To run the av1 encoder, you need to install the rtp plugin from https://github.com/GStreamer/gst-plugins-rs
+> - To run the h264 encoder with vaapi hardware acceleration, you need to have installed `sudo apt install gstreamer1.0-vaapi` and have a compatible Intel or AMD GPU with the necessary drivers.
 
 ## :balloon:Usage
 
