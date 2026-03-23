@@ -240,7 +240,8 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
                        "application/x-rtp,media=video,encoding-name=AV1,payload=96,clock-rate=90000 ! webrtc. ";
     } else if (encoder == "h264") {
       if (hw_accel == "vaapi") {
-        pipeline_desc += "vah264enc bitrate=1000 rate-control=cbr ! "
+        pipeline_desc += "video/x-raw,format=NV12 ! "
+                         "vaapih264enc rate-control=cbr bitrate=1000 ! "
                          "h264parse ! ";
       } else {
         if (hw_accel != "cpu")
