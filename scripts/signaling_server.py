@@ -18,7 +18,7 @@ clients = {}
 async def handle_websocket(websocket):
     client_id = None
     try:
-        splitted = websocket.request.path.split('/')
+        splitted = websocket.path.split('/')
         splitted.pop(0)
         client_id = splitted.pop(0)
         if not client_id:
@@ -46,7 +46,7 @@ async def handle_websocket(websocket):
 
     finally:
         if client_id:
-            del clients[client_id]
+            clients.pop(client_id, None)
             print('Client {} disconnected'.format(client_id))
 
 
