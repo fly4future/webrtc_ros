@@ -223,19 +223,24 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
     std::string encoder  = this->get_parameter("encoder").as_string();
     std::string hw_accel = this->get_parameter("hw_acceleration").as_string();
 
+    std::string enc_name = "enc_" + src_name;
+
     if (encoder == "av1") {
       // install rtp plugin https://github.com/GStreamer/gst-plugins-rs
       if (hw_accel == "vaapi") {
         // It needs VAEntrypointVLD and VAEntrypointEncSlice support in the driver (check with `vainfo | grep AV1`)
+        // rate-control=vbr is used instead of cbr for broader hardware compatibility
         pipeline_desc += "video/x-raw,format=NV12 ! "
-                         "vaav1enc bitrate=1000 rate-control=cbr ! ";
+                         "vaav1enc name=" +
+                         enc_name + " bitrate=1000 rate-control=vbr ! ";
       } else {
         if (hw_accel != "cpu")
           RCLCPP_WARN(this->get_logger(), "Unsupported hw_acceleration '%s' for AV1. Falling back to CPU.",
                       hw_accel.c_str());
 
         pipeline_desc += "video/x-raw,format=I420 !"
-                         "av1enc target-bitrate=1000 cpu-used=8 usage-profile=realtime end-usage=cbr ! ";
+                         "av1enc name=" +
+                         enc_name + " target-bitrate=1000 cpu-used=8 usage-profile=realtime end-usage=cbr ! ";
       }
 
       pipeline_desc += "av1parse ! "
@@ -243,15 +248,19 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
                        "application/x-rtp,media=video,encoding-name=AV1,payload=96,clock-rate=90000 ! webrtc. ";
     } else if (encoder == "h264") {
       if (hw_accel == "vaapi") {
+        // rate-control=vbr is used instead of cbr/cqp for broader hardware compatibility
         pipeline_desc += "video/x-raw,format=NV12 ! "
-                         "vaapih264enc rate-control=cqp bitrate=1000 ! "
+                         "vaapih264enc name=" +
+                         enc_name +
+                         " rate-control=vbr bitrate=1000 ! "
                          "h264parse ! ";
       } else {
         if (hw_accel != "cpu")
           RCLCPP_WARN(this->get_logger(), "Unsupported hw_acceleration '%s' for H.264. Falling back to CPU.",
                       hw_accel.c_str());
 
-        pipeline_desc += "x264enc tune=zerolatency bitrate=1000 speed-preset=ultrafast key-int-max=30 ! "
+        pipeline_desc += "x264enc name=" + enc_name +
+                         " tune=zerolatency bitrate=1000 speed-preset=ultrafast key-int-max=30 ! "
                          "video/x-h264,profile=constrained-baseline ! ";
       }
       pipeline_desc += "rtph264pay config-interval=-1 pt=96 ! "
@@ -283,16 +292,24 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
   g_signal_connect(session->webrtc, "on-negotiation-needed", G_CALLBACK(onNegotiationNeeded_), this);
   g_signal_connect(session->webrtc, "on-ice-candidate", G_CALLBACK(onICECandidate_), this);
 
+  // Determine encoder bitrate property name (all units are kbps)
+  std::string encoder_param  = this->get_parameter("encoder").as_string();
+  std::string hw_accel_param = this->get_parameter("hw_acceleration").as_string();
+  std::string bitrate_prop   = (encoder_param == "av1" && hw_accel_param == "cpu") ? "target-bitrate" : "bitrate";
+
   // 3. Connect AppSrcs to ROS Subscriptions
   for (const auto &stream : streams) {
     if (!existsImageTopic_(stream))
       continue;
 
     std::string src_name = "src_" + stream;
+    std::string enc_name = "enc_" + src_name;
 
     TrackInfo track_info;
-    track_info.topic_name = stream;
-    track_info.appsrc     = gst_bin_get_by_name(GST_BIN(session->pipeline), src_name.c_str());
+    track_info.topic_name       = stream;
+    track_info.appsrc           = gst_bin_get_by_name(GST_BIN(session->pipeline), src_name.c_str());
+    track_info.encoder          = gst_bin_get_by_name(GST_BIN(session->pipeline), enc_name.c_str());
+    track_info.bitrate_property = bitrate_prop;
 
     track_info.sub = this->create_subscription<sensor_msgs::msg::Image>(
         stream, rclcpp::SensorDataQoS(), [this, peer_id, stream](const sensor_msgs::msg::Image::SharedPtr msg) {
@@ -301,6 +318,10 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
 
     session->tracks[stream] = track_info;
   }
+
+  // Enable GCC congestion control(1) so webrtcbin signals bitrate estimates via on-encoder-bitrate
+  g_object_set(session->webrtc, "congestion-control", 1, nullptr);
+  g_signal_connect(session->webrtc, "on-encoder-bitrate", G_CALLBACK(onEncoderBitrate_), this);
 
   sessions_[peer_id] = session;
   gst_element_set_state(session->pipeline, GST_STATE_PLAYING);
@@ -382,6 +403,28 @@ void WebRTCStreamer::onICECandidate_(GstElement *webrtc, guint mline_index, gcha
   msg["sdpMLineIndex"] = std::to_string(mline_index);
 
   streamer->sendSignaling(msg);
+}
+
+void WebRTCStreamer::onEncoderBitrate_(GstElement *webrtc, [[maybe_unused]] gpointer transport, guint bitrate_bps,
+                                       gpointer user_data) {
+  auto  streamer = static_cast<WebRTCStreamer *>(user_data);
+  char *peer_id  = (char *)g_object_get_data(G_OBJECT(webrtc), "peer_id");
+
+  std::shared_lock lock(streamer->mtx_sessions_);
+  auto             it = streamer->sessions_.find(std::string(peer_id));
+  if (it == streamer->sessions_.end())
+    return;
+
+  const auto &tracks    = it->second->tracks;
+  guint       n         = static_cast<guint>(std::max<size_t>(1, tracks.size()));
+  guint       per_track = std::max(100u, bitrate_bps / 1000u / n); // kbps, floor at 100
+
+  for (const auto &[_, track] : tracks) {
+    if (track.encoder)
+      g_object_set(track.encoder, track.bitrate_property.c_str(), per_track, nullptr);
+  }
+
+  RCLCPP_DEBUG(streamer->get_logger(), "[%s] Bitrate estimate %u bps → %u kbps/track", peer_id, bitrate_bps, per_track);
 }
 
 void WebRTCStreamer::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg, const std::string &peer_id,

@@ -17,7 +17,9 @@ using WsClient = websocketpp::client<websocketpp::config::asio_client>;
 struct TrackInfo
 {
   std::string topic_name;
-  GstElement *appsrc = nullptr;
+  GstElement *appsrc  = nullptr;
+  GstElement *encoder = nullptr;
+  std::string bitrate_property; // "bitrate" (kbps) or "target-bitrate" (kbps) depending on encoder
 
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr sub;
 };
@@ -74,6 +76,7 @@ class WebRTCStreamer : public rclcpp::Node {
   static void onNegotiationNeeded_(GstElement *webrtc, gpointer user_data);
   static void onOfferCreated_(GstPromise *promise, gpointer user_data);
   static void onICECandidate_(GstElement *webrtc, guint mline_index, gchar *candidate, gpointer user_data);
+  static void onEncoderBitrate_(GstElement *webrtc, gpointer transport, guint bitrate_bps, gpointer user_data);
 
   // Utility
   bool                     existsImageTopic_(const std::string &topic_name);
