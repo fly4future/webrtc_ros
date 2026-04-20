@@ -73,7 +73,7 @@
   <div id="videos" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:16px"></div>
 
   <script>
-    const MY_ID = "browser-" + Math.random().toString(36).substr(2, 8);
+    const MY_ID = "browser";
     const REMOTE_ID = "uav999";
     const STREAMS = []; // ["/oak/stereo/image_raw"];
 
@@ -137,10 +137,10 @@
         await pc.setLocalDescription(answer);
         ws.send(JSON.stringify({ id: REMOTE_ID, type: "answer", sdp: answer.sdp }));
       } else if (msg.type === "candidate") {
-        await pc.addIceCandidate({ 
-          candidate: msg.candidate, 
-          sdpMid: msg.sdpMid, 
-          sdpMLineIndex: parseInt(msg.sdpMLineIndex) 
+        await pc.addIceCandidate({
+          candidate: msg.candidate,
+          sdpMid: msg.sdpMid,
+          sdpMLineIndex: parseInt(msg.sdpMLineIndex)
         });
       }
     };

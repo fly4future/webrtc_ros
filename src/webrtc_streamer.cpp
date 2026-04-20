@@ -1,5 +1,8 @@
 #include "webrtc_ros/webrtc_streamer.hpp"
 
+#include <algorithm>
+#include <regex>
+
 WebRTCStreamer::WebRTCStreamer()
     : Node("webrtc_streamer") {
   RCLCPP_INFO(get_logger(), "Starting WebRTC Streamer...");
@@ -317,6 +320,37 @@ void WebRTCStreamer::onOfferCreated_(GstPromise *promise, gpointer user_data) {
   GstWebRTCSessionDescription *offer = nullptr;
   gst_structure_get(reply, "offer", GST_TYPE_WEBRTC_SESSION_DESCRIPTION, &offer, nullptr);
   gst_promise_unref(promise);
+
+  // Patch SDP: replace GStreamer's auto-generated msid values (e.g. "webrtctransceiver0")
+  // with sanitized ROS topic names so the browser sees meaningful track labels.
+  {
+    std::shared_lock lock(streamer->mtx_sessions_);
+
+    auto it = streamer->sessions_.find(std::string(peer_id));
+    if (it != streamer->sessions_.end()) {
+      const auto &tracks = it->second->tracks;
+
+      gchar      *raw_sdp = gst_sdp_message_as_text(offer->sdp);
+      std::string sdp_str(raw_sdp);
+      g_free(raw_sdp);
+
+      size_t i = 0;
+      for (const auto &kv : tracks) {
+        std::string label = kv.second.topic_name;
+
+        std::string pattern = "webrtctransceiver" + std::to_string(i);
+        std::regex  re(pattern);
+        sdp_str = std::regex_replace(sdp_str, re, label);
+        ++i;
+      }
+
+      GstSDPMessage *new_sdp = nullptr;
+      gst_sdp_message_new(&new_sdp);
+      gst_sdp_message_parse_buffer(reinterpret_cast<const guint8 *>(sdp_str.c_str()), sdp_str.size(), new_sdp);
+      gst_webrtc_session_description_free(offer);
+      offer = gst_webrtc_session_description_new(GST_WEBRTC_SDP_TYPE_OFFER, new_sdp);
+    }
+  }
 
   // Set local description
   GstPromise *local_desc_promise = gst_promise_new();

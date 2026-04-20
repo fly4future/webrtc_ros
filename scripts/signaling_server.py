@@ -18,7 +18,13 @@ clients = {}
 async def handle_websocket(websocket):
     client_id = None
     try:
-        splitted = websocket.path.split('/')
+        if hasattr(websocket, 'path'):
+            path = websocket.path
+        elif hasattr(websocket, 'request') and hasattr(websocket.request, 'path'):
+            path = websocket.request.path
+        else:
+            raise AttributeError("Cannot determine WebSocket path")
+        splitted = path.split('/')
         splitted.pop(0)
         client_id = splitted.pop(0)
         if not client_id:
