@@ -319,11 +319,11 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
     session->tracks[stream] = track_info;
   }
 
-  // congestion-control and on-encoder-bitrate require GStreamer >= 1.22
-#if GST_CHECK_VERSION(1, 22, 0)
-  g_object_set(session->webrtc, "congestion-control", 1, nullptr);
-  g_signal_connect(session->webrtc, "on-encoder-bitrate", G_CALLBACK(onEncoderBitrate_), this);
-#endif
+  // congestion-control and on-encoder-bitrate are only available in certain GStreamer builds
+  if (g_object_class_find_property(G_OBJECT_GET_CLASS(session->webrtc), "congestion-control"))
+    g_object_set(session->webrtc, "congestion-control", 1, nullptr);
+  if (g_signal_lookup("on-encoder-bitrate", G_OBJECT_TYPE(session->webrtc)))
+    g_signal_connect(session->webrtc, "on-encoder-bitrate", G_CALLBACK(onEncoderBitrate_), this);
 
   sessions_[peer_id] = session;
   gst_element_set_state(session->pipeline, GST_STATE_PLAYING);
