@@ -319,9 +319,11 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
     session->tracks[stream] = track_info;
   }
 
-  // Enable GCC congestion control(1) so webrtcbin signals bitrate estimates via on-encoder-bitrate
+  // congestion-control and on-encoder-bitrate require GStreamer >= 1.22
+#if GST_CHECK_VERSION(1, 22, 0)
   g_object_set(session->webrtc, "congestion-control", 1, nullptr);
   g_signal_connect(session->webrtc, "on-encoder-bitrate", G_CALLBACK(onEncoderBitrate_), this);
+#endif
 
   sessions_[peer_id] = session;
   gst_element_set_state(session->pipeline, GST_STATE_PLAYING);
@@ -355,14 +357,26 @@ void WebRTCStreamer::onOfferCreated_(GstPromise *promise, gpointer user_data) {
       std::string sdp_str(raw_sdp);
       g_free(raw_sdp);
 
-      size_t i = 0;
-      for (const auto &kv : tracks) {
-        std::string label = kv.second.topic_name;
+      // Collect unique webrtctransceiverN labels in order of first appearance
+      std::vector<std::string> gst_labels;
+      {
+        std::regex           find_re("webrtctransceiver\\d+");
+        std::sregex_iterator it(sdp_str.begin(), sdp_str.end(), find_re);
+        std::sregex_iterator end;
+        for (; it != end; ++it) {
+          std::string match = (*it)[0].str();
+          if (std::find(gst_labels.begin(), gst_labels.end(), match) == gst_labels.end())
+            gst_labels.push_back(match);
+        }
+      }
 
-        std::string pattern = "webrtctransceiver" + std::to_string(i);
-        std::regex  re(pattern);
-        sdp_str = std::regex_replace(sdp_str, re, label);
-        ++i;
+      auto track_it = tracks.begin();
+      for (const auto &gst_label : gst_labels) {
+        if (track_it == tracks.end())
+          break;
+        std::regex re(gst_label);
+        sdp_str = std::regex_replace(sdp_str, re, track_it->second.topic_name);
+        ++track_it;
       }
 
       GstSDPMessage *new_sdp = nullptr;
