@@ -225,10 +225,10 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
 
     std::string encoder  = this->get_parameter("encoder").as_string();
     std::string hw_accel = this->get_parameter("hw_acceleration").as_string();
-    int         h264_bitrate_kbps =
-        std::max(100, this->get_parameter("h264_bitrate_kbps").as_int());
-    int h264_keyframe_interval =
-        std::max(1, this->get_parameter("h264_keyframe_interval").as_int());
+    int h264_bitrate_kbps = static_cast<int>(
+        std::max<int64_t>(100, this->get_parameter("h264_bitrate_kbps").as_int()));
+    int h264_keyframe_interval = static_cast<int>(
+        std::max<int64_t>(1, this->get_parameter("h264_keyframe_interval").as_int()));
 
     if (encoder == "av1") {
       // install rtp plugin https://github.com/GStreamer/gst-plugins-rs
