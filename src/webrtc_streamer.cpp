@@ -142,6 +142,38 @@ void WebRTCStreamer::handleSignalingMessage_(const std::string &payload) {
         }
       }
       createPeerSession_(peer_id, requested);
+    } else if (type == "set_bitrate") {
+      int bitrate_kbps = 0;
+      if (msg.contains("bitrate_kbps") && msg["bitrate_kbps"].is_number_integer()) {
+        bitrate_kbps = msg["bitrate_kbps"].get<int>();
+      } else if (msg.contains("bitrate_kbps") && msg["bitrate_kbps"].is_string()) {
+        bitrate_kbps = std::stoi(msg["bitrate_kbps"].get<std::string>());
+      } else {
+        RCLCPP_WARN(get_logger(), "Ignoring set_bitrate from %s: missing/invalid bitrate_kbps", peer_id.c_str());
+        return;
+      }
+
+      bitrate_kbps = std::clamp(bitrate_kbps, 100, 12000);
+      this->set_parameter(rclcpp::Parameter("h264_bitrate_kbps", bitrate_kbps));
+      RCLCPP_INFO(get_logger(), "Updated h264_bitrate_kbps to %d kbps (requested by %s)", bitrate_kbps,
+                  peer_id.c_str());
+
+      // Recreate this peer session with its last requested streams so encoder
+      // settings take effect immediately for this active connection.
+      std::vector<std::string> streams_to_restore;
+      bool                     had_session = false;
+      {
+        std::shared_lock lock(mtx_sessions_);
+        auto             it = sessions_.find(peer_id);
+        if (it != sessions_.end()) {
+          had_session = true;
+          streams_to_restore = it->second->requested_streams;
+        }
+      }
+      if (had_session) {
+        RCLCPP_INFO(get_logger(), "Recreating session for %s to apply new bitrate", peer_id.c_str());
+        createPeerSession_(peer_id, streams_to_restore);
+      }
     } else if (type == "answer") {
       std::unique_lock lock(mtx_sessions_);
       if (sessions_.find(peer_id) == sessions_.end()) {
@@ -202,6 +234,7 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
 
   auto session     = std::make_shared<PeerSession>();
   session->peer_id = peer_id;
+  session->requested_streams = requested_streams;
 
   // Add the webrtcbin element with the public STUN server for ICE candidates
   std::string pipeline_desc =
