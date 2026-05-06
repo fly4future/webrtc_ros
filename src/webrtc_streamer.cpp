@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <regex>
+#include <unordered_map>
 
 WebRTCStreamer::WebRTCStreamer()
     : Node("webrtc_streamer") {
@@ -312,6 +313,7 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
         });
 
     session->tracks[stream] = track_info;
+    session->stream_labels_ordered.push_back(stream);
   }
 
   sessions_[peer_id] = session;
@@ -340,20 +342,44 @@ void WebRTCStreamer::onOfferCreated_(GstPromise *promise, gpointer user_data) {
 
     auto it = streamer->sessions_.find(std::string(peer_id));
     if (it != streamer->sessions_.end()) {
-      const auto &tracks = it->second->tracks;
+      const auto &stream_labels_ordered = it->second->stream_labels_ordered;
 
       gchar      *raw_sdp = gst_sdp_message_as_text(offer->sdp);
       std::string sdp_str(raw_sdp);
       g_free(raw_sdp);
 
-      size_t i = 0;
-      for (const auto &kv : tracks) {
-        std::string label = kv.second.topic_name;
+      // Deterministic relabeling: map transceiver placeholders in first-seen order
+      // to the ordered stream list from session setup. This stays stable across
+      // renegotiations where transceiver indices may jump (e.g. 3,4,5...).
+      if (!stream_labels_ordered.empty()) {
+        std::regex                            transceiver_re("webrtctransceiver\\d+");
+        std::unordered_map<std::string, std::string> transceiver_to_stream;
+        size_t                                next_label_idx = 0;
+        std::string                           rewritten;
+        std::smatch                           match;
+        std::string::const_iterator           search_start = sdp_str.cbegin();
 
-        std::string pattern = "webrtctransceiver" + std::to_string(i);
-        std::regex  re(pattern);
-        sdp_str = std::regex_replace(sdp_str, re, label);
-        ++i;
+        while (std::regex_search(search_start, sdp_str.cend(), match, transceiver_re)) {
+          rewritten.append(search_start, match[0].first);
+
+          const std::string token = match[0].str();
+          auto              mapped_it = transceiver_to_stream.find(token);
+          if (mapped_it == transceiver_to_stream.end() && next_label_idx < stream_labels_ordered.size()) {
+            mapped_it = transceiver_to_stream
+                            .emplace(token, stream_labels_ordered[next_label_idx++])
+                            .first;
+          }
+
+          if (mapped_it != transceiver_to_stream.end()) {
+            rewritten += mapped_it->second;
+          } else {
+            rewritten += token;
+          }
+
+          search_start = match[0].second;
+        }
+        rewritten.append(search_start, sdp_str.cend());
+        sdp_str = std::move(rewritten);
       }
 
       GstSDPMessage *new_sdp = nullptr;
