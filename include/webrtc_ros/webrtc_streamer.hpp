@@ -30,6 +30,8 @@ struct PeerSession
 
   // Streams
   std::map<std::string, TrackInfo> tracks;
+  std::vector<std::string>         stream_labels_ordered;
+  std::vector<std::string>         requested_streams;
 
   ~PeerSession() {
     if (pipeline) {

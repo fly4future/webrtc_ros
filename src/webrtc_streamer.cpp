@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <regex>
+#include <unordered_map>
 
 WebRTCStreamer::WebRTCStreamer()
     : Node("webrtc_streamer") {
@@ -13,6 +14,8 @@ WebRTCStreamer::WebRTCStreamer()
 
   this->declare_parameter("encoder", "h264");        // Options: "h264" or "av1"
   this->declare_parameter("hw_acceleration", "cpu"); // Options: "cpu", "nv" (NVIDIA), "vaapi" (Intel/AMD)
+  this->declare_parameter("h264_bitrate_kbps", 1500);
+  this->declare_parameter("h264_keyframe_interval", 30);
 
   // Initialize GStreamer once globally
   gst_init(nullptr, nullptr);
@@ -139,6 +142,38 @@ void WebRTCStreamer::handleSignalingMessage_(const std::string &payload) {
         }
       }
       createPeerSession_(peer_id, requested);
+    } else if (type == "set_bitrate") {
+      int bitrate_kbps = 0;
+      if (msg.contains("bitrate_kbps") && msg["bitrate_kbps"].is_number_integer()) {
+        bitrate_kbps = msg["bitrate_kbps"].get<int>();
+      } else if (msg.contains("bitrate_kbps") && msg["bitrate_kbps"].is_string()) {
+        bitrate_kbps = std::stoi(msg["bitrate_kbps"].get<std::string>());
+      } else {
+        RCLCPP_WARN(get_logger(), "Ignoring set_bitrate from %s: missing/invalid bitrate_kbps", peer_id.c_str());
+        return;
+      }
+
+      bitrate_kbps = std::clamp(bitrate_kbps, 100, 12000);
+      this->set_parameter(rclcpp::Parameter("h264_bitrate_kbps", bitrate_kbps));
+      RCLCPP_INFO(get_logger(), "Updated h264_bitrate_kbps to %d kbps (requested by %s)", bitrate_kbps,
+                  peer_id.c_str());
+
+      // Recreate this peer session with its last requested streams so encoder
+      // settings take effect immediately for this active connection.
+      std::vector<std::string> streams_to_restore;
+      bool                     had_session = false;
+      {
+        std::shared_lock lock(mtx_sessions_);
+        auto             it = sessions_.find(peer_id);
+        if (it != sessions_.end()) {
+          had_session = true;
+          streams_to_restore = it->second->requested_streams;
+        }
+      }
+      if (had_session) {
+        RCLCPP_INFO(get_logger(), "Recreating session for %s to apply new bitrate", peer_id.c_str());
+        createPeerSession_(peer_id, streams_to_restore);
+      }
     } else if (type == "answer") {
       std::unique_lock lock(mtx_sessions_);
       if (sessions_.find(peer_id) == sessions_.end()) {
@@ -199,6 +234,7 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
 
   auto session     = std::make_shared<PeerSession>();
   session->peer_id = peer_id;
+  session->requested_streams = requested_streams;
 
   // Add the webrtcbin element with the public STUN server for ICE candidates
   std::string pipeline_desc =
@@ -218,10 +254,15 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
 
     pipeline_desc += "appsrc name=" + src_name +
                      " format=time is-live=true do-timestamp=true ! "
+                     "queue leaky=downstream max-size-buffers=2 max-size-bytes=0 max-size-time=0 ! "
                      "videoconvert ! ";
 
     std::string encoder  = this->get_parameter("encoder").as_string();
     std::string hw_accel = this->get_parameter("hw_acceleration").as_string();
+    int h264_bitrate_kbps = static_cast<int>(
+        std::max<int64_t>(100, this->get_parameter("h264_bitrate_kbps").as_int()));
+    int h264_keyframe_interval = static_cast<int>(
+        std::max<int64_t>(1, this->get_parameter("h264_keyframe_interval").as_int()));
 
     if (encoder == "av1") {
       // install rtp plugin https://github.com/GStreamer/gst-plugins-rs
@@ -245,16 +286,21 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
       if (hw_accel == "vaapi") {
         pipeline_desc += "video/x-raw,format=NV12 ! "
                          "vaapih264enc rate-control=cqp init-qp=26 ! "
-                         "h264parse ! ";
+                         "h264parse ! "
+                         "video/x-h264,profile=constrained-baseline ! ";
       } else {
         if (hw_accel != "cpu")
           RCLCPP_WARN(this->get_logger(), "Unsupported hw_acceleration '%s' for H.264. Falling back to CPU.",
                       hw_accel.c_str());
 
-        pipeline_desc += "x264enc tune=zerolatency bitrate=1000 speed-preset=ultrafast key-int-max=30 ! "
+        pipeline_desc += "x264enc tune=zerolatency speed-preset=ultrafast bitrate=" +
+                         std::to_string(h264_bitrate_kbps) +
+                         " key-int-max=" + std::to_string(h264_keyframe_interval) +
+                         " bframes=0 rc-lookahead=0 sliced-threads=true ! "
                          "video/x-h264,profile=constrained-baseline ! ";
       }
-      pipeline_desc += "rtph264pay config-interval=-1 pt=96 ! "
+      // Repeat SPS/PPS in-band to help decoder recovery after packet loss.
+      pipeline_desc += "rtph264pay config-interval=1 pt=96 ! "
                        "application/x-rtp,media=video,encoding-name=H264,payload=96,clock-rate=90000 ! webrtc. ";
     } else {
       RCLCPP_ERROR(this->get_logger(), "Unsupported encoder '%s'.", encoder.c_str());
@@ -300,6 +346,7 @@ void WebRTCStreamer::createPeerSession_(const std::string &peer_id, const std::v
         });
 
     session->tracks[stream] = track_info;
+    session->stream_labels_ordered.push_back(stream);
   }
 
   sessions_[peer_id] = session;
@@ -328,20 +375,44 @@ void WebRTCStreamer::onOfferCreated_(GstPromise *promise, gpointer user_data) {
 
     auto it = streamer->sessions_.find(std::string(peer_id));
     if (it != streamer->sessions_.end()) {
-      const auto &tracks = it->second->tracks;
+      const auto &stream_labels_ordered = it->second->stream_labels_ordered;
 
       gchar      *raw_sdp = gst_sdp_message_as_text(offer->sdp);
       std::string sdp_str(raw_sdp);
       g_free(raw_sdp);
 
-      size_t i = 0;
-      for (const auto &kv : tracks) {
-        std::string label = kv.second.topic_name;
+      // Deterministic relabeling: map transceiver placeholders in first-seen order
+      // to the ordered stream list from session setup. This stays stable across
+      // renegotiations where transceiver indices may jump (e.g. 3,4,5...).
+      if (!stream_labels_ordered.empty()) {
+        std::regex                            transceiver_re("webrtctransceiver\\d+");
+        std::unordered_map<std::string, std::string> transceiver_to_stream;
+        size_t                                next_label_idx = 0;
+        std::string                           rewritten;
+        std::smatch                           match;
+        std::string::const_iterator           search_start = sdp_str.cbegin();
 
-        std::string pattern = "webrtctransceiver" + std::to_string(i);
-        std::regex  re(pattern);
-        sdp_str = std::regex_replace(sdp_str, re, label);
-        ++i;
+        while (std::regex_search(search_start, sdp_str.cend(), match, transceiver_re)) {
+          rewritten.append(search_start, match[0].first);
+
+          const std::string token = match[0].str();
+          auto              mapped_it = transceiver_to_stream.find(token);
+          if (mapped_it == transceiver_to_stream.end() && next_label_idx < stream_labels_ordered.size()) {
+            mapped_it = transceiver_to_stream
+                            .emplace(token, stream_labels_ordered[next_label_idx++])
+                            .first;
+          }
+
+          if (mapped_it != transceiver_to_stream.end()) {
+            rewritten += mapped_it->second;
+          } else {
+            rewritten += token;
+          }
+
+          search_start = match[0].second;
+        }
+        rewritten.append(search_start, sdp_str.cend());
+        sdp_str = std::move(rewritten);
       }
 
       GstSDPMessage *new_sdp = nullptr;
@@ -401,13 +472,6 @@ void WebRTCStreamer::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg,
   if (!target_appsrc)
     return;
 
-  // Convert ROS Image message to raw buffer
-  GstBuffer *buf = gst_buffer_new_allocate(nullptr, msg->data.size(), nullptr);
-  GstMapInfo map;
-  gst_buffer_map(buf, &map, GST_MAP_WRITE);
-  memcpy(map.data, msg->data.data(), msg->data.size());
-  gst_buffer_unmap(buf, &map);
-
   // Set caps based on image encoding
   std::map<std::string, std::string> encoding_map = {
     { "rgb8", "RGB" },         //
@@ -418,22 +482,40 @@ void WebRTCStreamer::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg,
   };
   if (encoding_map.find(msg->encoding) == encoding_map.end()) {
     RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 5000, "Unsupported image encoding: %s", msg->encoding.c_str());
-    gst_buffer_unref(buf);
     return;
   }
 
-  GstCaps *caps = gst_caps_new_simple("video/x-raw", //
-                                      "format", G_TYPE_STRING, encoding_map.at(msg->encoding).c_str(), "width",
-                                      G_TYPE_INT, msg->width,                //
-                                      "height", G_TYPE_INT, msg->height,     //
-                                      "framerate", GST_TYPE_FRACTION, 30, 1, //
-                                      nullptr);
-  g_object_set(target_appsrc, "caps", caps, nullptr);
-  gst_caps_unref(caps);
+  // Caps renegotiation is expensive; only update when stream format/size changes.
+  const std::string &gst_format = encoding_map.at(msg->encoding);
+  std::string        caps_key =
+      gst_format + "|" + std::to_string(msg->width) + "x" + std::to_string(msg->height);
+  auto existing_caps_key = static_cast<const char *>(g_object_get_data(G_OBJECT(target_appsrc), "caps_key"));
+  if (!existing_caps_key || caps_key != existing_caps_key) {
+    GstCaps *caps = gst_caps_new_simple("video/x-raw", //
+                                        "format", G_TYPE_STRING, gst_format.c_str(), "width",
+                                        G_TYPE_INT, msg->width,             //
+                                        "height", G_TYPE_INT, msg->height,  //
+                                        "framerate", GST_TYPE_FRACTION, 30, //
+                                        1, nullptr);
+    g_object_set(target_appsrc, "caps", caps, nullptr);
+    gst_caps_unref(caps);
+    g_object_set_data_full(G_OBJECT(target_appsrc), "caps_key", g_strdup(caps_key.c_str()), g_free);
+  }
+
+  // Convert ROS Image message to raw buffer
+  GstBuffer *buf = gst_buffer_new_allocate(nullptr, msg->data.size(), nullptr);
+  GstMapInfo map;
+  gst_buffer_map(buf, &map, GST_MAP_WRITE);
+  memcpy(map.data, msg->data.data(), msg->data.size());
+  gst_buffer_unmap(buf, &map);
 
   // Push buffer to appsrc
   GstFlowReturn ret;
   g_signal_emit_by_name(target_appsrc, "push-buffer", buf, &ret);
+  if (ret != GST_FLOW_OK) {
+    RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000, "Dropping frame for [%s:%s], appsrc push flow=%d",
+                         peer_id.c_str(), stream.c_str(), static_cast<int>(ret));
+  }
   gst_buffer_unref(buf);
 }
 
